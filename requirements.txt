@@ -1,7 +1,5 @@
 streamlit
-yfinance
 pandas
 requests
 lxml
-plotly
 tradingview-ta
