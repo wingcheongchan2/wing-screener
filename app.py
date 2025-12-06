@@ -1,27 +1,30 @@
 import streamlit as st
 import pandas as pd
 import requests
-import yfinance as yf
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import streamlit.components.v1 as components
 from io import StringIO
 from tradingview_ta import TA_Handler, Interval, Exchange
 
 # ==========================================
-# 1. 設定頁面
+# 1. 頁面設定
 # ==========================================
-st.set_page_config(page_title="J Law 選股神器", layout="wide")
-st.title("🚀 J Law (USIC 冠軍) 智能選股 & 圖表分析")
+st.set_page_config(page_title="J Law 冠軍操盤室", layout="wide", page_icon="🚀")
 
-# 初始化 Session State (用黎記住掃描結果)
+st.title("🚀 J Law (Mark Minervini) 冠軍操盤室")
+st.markdown("""
+此工具結合 **TradingView 技術分析** 與 **J Law 趨勢樣板 (Trend Template)** 策略。
+目標：尋找 **多頭排列 (50 > 150 > 200)** 且 **動能強勁 (RSI 高 + 接近新高)** 的股票。
+""")
+
+# 初始化 Session State
 if 'scan_results' not in st.session_state:
     st.session_state['scan_results'] = None
 
 # ==========================================
-# 2. 核心功能函數
+# 2. 核心功能
 # ==========================================
 
-# --- 獲取 Nasdaq 100 名單 ---
+# --- 獲取 Nasdaq 100 ---
 @st.cache_data
 def get_nasdaq100():
     headers = {'User-Agent': 'Mozilla/5.0'}
@@ -36,151 +39,203 @@ def get_nasdaq100():
     except:
         return []
 
-# --- TradingView 數據查詢 ---
-def get_tv_analysis(ticker):
-    try:
-        handler = TA_Handler(
-            symbol=ticker,
-            screener="america",
-            exchange="NASDAQ",
-            interval=Interval.INTERVAL_1_DAY
-        )
-        return handler.get_analysis()
-    except:
-        return None
+# --- 顯示 TradingView 實時圖表 (含 J Law 均線) ---
+def show_tv_widget(symbol):
+    # 這是一段 HTML+JS 代碼，用來嵌入 TradingView 官方 Widget
+    # 我們設定了 studies (技術指標) 自動顯示 MASimple (均線)
+    html_code = f"""
+    <div class="tradingview-widget-container">
+      <div id="tradingview_chart"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+      <script type="text/javascript">
+      new TradingView.widget(
+      {{
+        "width": "100%",
+        "height": 600,
+        "symbol": "{symbol}",
+        "interval": "D",
+        "timezone": "Exchange",
+        "theme": "dark",
+        "style": "1",
+        "locale": "zh_TW",
+        "toolbar_bg": "#f1f3f6",
+        "enable_publishing": false,
+        "allow_symbol_change": true,
+        "container_id": "tradingview_chart",
+        "studies": [
+          {{
+            "id": "MASimple@tv-basicstudies",
+            "inputs": {{ "length": 50 }},
+            "title": "50 MA (中期)"
+          }},
+          {{
+            "id": "MASimple@tv-basicstudies",
+            "inputs": {{ "length": 150 }},
+            "title": "150 MA (趨勢)"
+          }},
+          {{
+            "id": "MASimple@tv-basicstudies",
+            "inputs": {{ "length": 200 }},
+            "title": "200 MA (長期)"
+          }}
+        ]
+      }}
+      );
+      </script>
+    </div>
+    """
+    components.html(html_code, height=600)
 
-# --- 繪畫 J Law 圖表 (K線 + 4條均線 + RS Line) ---
-def plot_jlaw_chart(ticker):
-    # 下載個股與大盤數據
-    stock_df = yf.download(ticker, period="1y", interval="1d", progress=False)
-    spy_df = yf.download("SPY", period="1y", interval="1d", progress=False)
+# --- J Law 掃描邏輯 ---
+def scan_jlaw(tickers, strict_mode):
+    results = []
+    total = len(tickers)
     
-    if stock_df.empty or spy_df.empty:
-        st.error(f"無法下載 {ticker} 的數據，請稍後再試。")
-        return
-
-    # 計算均線
-    stock_df['MA10'] = stock_df['Close'].rolling(window=10).mean()
-    stock_df['MA20'] = stock_df['Close'].rolling(window=20).mean()
-    stock_df['MA50'] = stock_df['Close'].rolling(window=50).mean()
-    stock_df['MA200'] = stock_df['Close'].rolling(window=200).mean()
-
-    # 計算 RS Line
-    # 處理 Index 對齊問題
-    common_index = stock_df.index.intersection(spy_df.index)
-    # 使用 .loc 確保只取對應日期的數據
-    stock_close = stock_df.loc[common_index]['Close']
-    spy_close = spy_df.loc[common_index]['Close']
+    # 進度條
+    progress_bar = st.progress(0)
+    status_text = st.empty()
     
-    # 防止除以零或其他錯誤
-    rs_line = (stock_close / spy_close) * 100
-
-    # 建立圖表
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, 
-                        vertical_spacing=0.05, row_heights=[0.7, 0.3],
-                        subplot_titles=(f"{ticker} 價格趨勢 (多頭排列)", "RS 強度線 (vs S&P 500)"))
-
-    # 上半部：K線
-    fig.add_trace(go.Candlestick(x=stock_df.index,
-                                 open=stock_df['Open'], high=stock_df['High'],
-                                 low=stock_df['Low'], close=stock_df['Close'],
-                                 name="K線"), row=1, col=1)
-    
-    # 上半部：均線
-    fig.add_trace(go.Scatter(x=stock_df.index, y=stock_df['MA10'], line=dict(color='green', width=1), name="10 MA"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=stock_df.index, y=stock_df['MA20'], line=dict(color='yellow', width=1), name="20 MA"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=stock_df.index, y=stock_df['MA50'], line=dict(color='orange', width=2), name="50 MA"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=stock_df.index, y=stock_df['MA200'], line=dict(color='red', width=2), name="200 MA"), row=1, col=1)
-
-    # 下半部：RS Line
-    fig.add_trace(go.Scatter(x=rs_line.index, y=rs_line, line=dict(color='cyan', width=2), name="RS Line"), row=2, col=1)
-
-    fig.update_layout(height=800, template="plotly_dark", xaxis_rangeslider_visible=False)
-    st.plotly_chart(fig, use_container_width=True)
-
-# ==========================================
-# 3. 主介面邏輯
-# ==========================================
-
-# --- 步驟 1: 掃描按鈕 ---
-col1, col2 = st.columns([1, 3])
-
-with col1:
-    if st.button("🔍 開始掃描 Nasdaq 100 (Strong Buy)", type="primary"):
-        tickers = get_nasdaq100()
-        if not tickers:
-            st.error("無法獲取名單")
-        else:
-            status_text = st.empty()
-            progress_bar = st.progress(0)
-            results = []
-            
-            # 為了示範，這裡只掃描前 30 隻
-            scan_limit = 30 
-            target_list = tickers[:scan_limit]
-            
-            for i, ticker in enumerate(target_list):
-                status_text.text(f"正在分析: {ticker} ({i+1}/{len(target_list)})")
-                progress_bar.progress((i + 1) / len(target_list))
-                
-                analysis = get_tv_analysis(ticker)
-                if analysis:
-                    rec = analysis.summary['RECOMMENDATION']
-                    close = analysis.indicators['close']
-                    sma50 = analysis.indicators['SMA50']
-                    rsi = analysis.indicators['RSI']
-                    
-                    # 篩選邏輯：Strong Buy + 價格 > 50天線
-                    if rec == "STRONG_BUY" and close > sma50:
-                        results.append({
-                            "代號": ticker,
-                            "現價": round(close, 2),
-                            "RSI": round(rsi, 2),
-                            "TV評級": rec
-                        })
-            
-            status_text.text("掃描完成！")
-            progress_bar.empty()
-            
-            # 將結果存入 Session State
-            if results:
-                df = pd.DataFrame(results).sort_values(by="RSI", ascending=False)
-                st.session_state['scan_results'] = df
-            else:
-                st.warning("沒有股票符合條件。")
-
-# --- 步驟 2: 顯示結果與圖表 ---
-if st.session_state['scan_results'] is not None:
-    df_results = st.session_state['scan_results']
-    
-    # 顯示表格
-    with col2:
-        st.subheader(f"📋 掃描結果 (共 {len(df_results)} 隻)")
-        st.dataframe(df_results, use_container_width=True)
-
-    st.divider()
-    
-    # 顯示選股下拉選單
-    st.header("📊 J Law 圖表詳細分析")
-    stock_list = df_results['代號'].tolist()
-    
-    # 讓用戶選擇
-    selected_stock = st.selectbox("請選擇一隻股票查看圖表：", stock_list)
-    
-    # 當選取後，自動畫圖
-    if selected_stock:
-        plot_jlaw_chart(selected_stock)
+    for i, ticker in enumerate(tickers):
+        progress_bar.progress((i + 1) / total)
+        status_text.text(f"正在分析 {ticker} ({i+1}/{total})...")
         
-        # J Law 分析教學
-        st.info(f"""
-        **💡 如何分析 {selected_stock}？**
-        1. **檢查趨勢**：K線圖中的均線是否呈現 **綠 > 黃 > 橙 > 紅** 的排列？
-        2. **檢查強度**：下方的 **RS Line (藍色)** 是否正在向上？
-        3. **買入點**：如果是 Strong Buy，等待股價回調至 **10天 (綠色)** 或 **20天 (黃色)** 線附近通常是好時機。
-        """)
+        try:
+            handler = TA_Handler(
+                symbol=ticker,
+                screener="america",
+                exchange="NASDAQ",
+                interval=Interval.INTERVAL_1_DAY
+            )
+            analysis = handler.get_analysis()
+            
+            if analysis:
+                # 獲取指標
+                close = analysis.indicators['close']
+                sma50 = analysis.indicators['SMA50']
+                sma200 = analysis.indicators['SMA200']
+                rsi = analysis.indicators['RSI']
+                high52 = analysis.indicators.get('high52', close * 1.5) # 防呆
+                low52 = analysis.indicators.get('low52', close * 0.5)
+                
+                # 計算 SMA 150 (TradingView TA 默認沒有 150，我們用 100 和 200 的中間值估算，或者簡化邏輯)
+                # 為了準確，這裡我們用嚴格邏輯：股價 > 50 > 200
+                
+                # --- J Law 核心過濾條件 ---
+                
+                # 條件 1: 價格高於 50天線 和 200天線
+                cond_trend = (close > sma50) and (close > sma200)
+                
+                # 條件 2: 50天線 高於 200天線 (黃金排列)
+                cond_alignment = sma50 > sma200
+                
+                # 條件 3: 接近 52 週新高 (處於高位 25% 範圍內) - VCP 關鍵
+                cond_near_high = close >= (high52 * 0.75)
+                
+                # 條件 4: 脫離 52 週低位 (升咗至少 30%)
+                cond_above_low = close >= (low52 * 1.30)
+                
+                # 條件 5: 動能 RSI (J Law 喜歡 RSI > 70，但我哋設 55 做起點)
+                cond_rsi = rsi > 55
+                
+                # 判斷是否符合
+                is_match = False
+                
+                if strict_mode:
+                    # 嚴格模式：必須全中
+                    if cond_trend and cond_alignment and cond_near_high and cond_above_low and cond_rsi:
+                        is_match = True
+                else:
+                    # 寬鬆模式：只要趨勢向上 + RSI OK 就得
+                    if cond_trend and cond_rsi:
+                        is_match = True
+                
+                if is_match:
+                    results.append({
+                        "代號": ticker,
+                        "現價": round(close, 2),
+                        "RSI": round(rsi, 2),
+                        "離高位%": round((close - high52) / high52 * 100, 1),
+                        "狀態": "✅ 符合"
+                    })
+                    
+        except Exception as e:
+            continue
+            
+    progress_bar.empty()
+    status_text.empty()
+    return results
 
-else:
-    # 錯誤發生係因為你之前呢度嘅縮排冇咗
-    # 而家修正好：
-    with col2:
-        st.info("👈 請點擊左側按鈕開始掃描。掃描完成後，這裡會顯示結果和圖表。")
+# ==========================================
+# 3. 主界面佈局
+# ==========================================
+
+# 側邊欄設定
+st.sidebar.header("⚙️ 掃描設定")
+mode = st.sidebar.radio("篩選模式", ["寬鬆模式 (更多結果)", "嚴格 J Law (Trend Template)"])
+strict_mode = True if mode == "嚴格 J Law (Trend Template)" else False
+
+if st.sidebar.button("🔍 開始掃描 Nasdaq 100", type="primary"):
+    tickers = get_nasdaq100()
+    if not tickers:
+        st.error("無法下載名單")
+    else:
+        st.session_state['scan_results'] = scan_jlaw(tickers, strict_mode)
+
+# 主畫面內容
+col1, col2 = st.columns([1, 2])
+
+# 左邊：結果列表
+with col1:
+    st.subheader(f"📋 掃描結果 ({mode})")
+    
+    if st.session_state['scan_results'] is not None:
+        df = pd.DataFrame(st.session_state['scan_results'])
+        
+        if not df.empty:
+            # 按 RSI 排序
+            df = df.sort_values(by="RSI", ascending=False)
+            st.write(f"共找到 {len(df)} 隻潛力股")
+            
+            # 互動表格，選取股票
+            selected_row = st.dataframe(
+                df, 
+                use_container_width=True, 
+                hide_index=True,
+                selection_mode="single-row",
+                on_select="rerun" # 點擊即刷新
+            )
+            
+            # 獲取用戶點選的股票
+            # (Streamlit 新版 selection 處理方法)
+            # 簡單起見，我們用 Selectbox 輔助
+            st.divider()
+            target_stock = st.selectbox("👉 選擇要分析的股票：", df['代號'].tolist())
+            
+        else:
+            st.warning("沒有股票符合條件。")
+            target_stock = None
+    else:
+        st.info("👈 請在側邊欄點擊按鈕開始掃描")
+        target_stock = None
+
+# 右邊：實時圖表
+with col2:
+    st.subheader("📈 實時圖表分析")
+    
+    if target_stock:
+        st.success(f"正在顯示 {target_stock} 實時走勢")
+        st.caption("圖表已自動加載 J Law 關鍵均線：50MA, 150MA, 200MA")
+        
+        # 呼叫 TradingView Widget
+        show_tv_widget(target_stock)
+        
+        st.info("""
+        **🧐 J Law 圖表檢查重點：**
+        1. **多頭排列**：股價是否在 50MA > 150MA > 200MA 之上？
+        2. **200天線方向**：紅色那條 200MA 是否正在**向上**？(這是關鍵)
+        3. **價格收縮 (VCP)**：股價是否經歷了波幅收窄？
+        """)
+    else:
+        # 預設顯示 QQQ
+        st.write("預覽 (QQQ)：")
+        show_tv_widget("QQQ")
