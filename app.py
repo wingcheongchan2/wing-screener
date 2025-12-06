@@ -1,61 +1,193 @@
 import streamlit as st
 import pandas as pd
-import requests
+import yfinance as yf
 import streamlit.components.v1 as components
-from io import StringIO
 from tradingview_ta import TA_Handler, Interval, Exchange
 
 # ==========================================
-# 1. 網站基本設定
+# 1. 系統設定與名單 (不依賴 Wikipedia)
 # ==========================================
-st.set_page_config(page_title="J Law 冠軍操盤室", layout="wide", page_icon="🚀")
+st.set_page_config(page_title="J Law 混合引擎選股器", layout="wide", page_icon="🚀")
 
-st.title("🚀 J Law (Mark Minervini) 冠軍操盤室")
-st.markdown("""
-此系統結合 **Trend Template (趨勢樣板)** 與 **Pullback (拉回買入)** 策略。
-*   **冠軍模式**：尋找正在創新高、動能最強的股票。
-*   **拉回模式**：尋找強勢股回調至 **10天線** 或 **20天線** 的低風險買點。
-""")
+st.title("🚀 J Law 冠軍操盤室 (混合引擎版)")
+st.caption("引擎邏輯：優先使用 TradingView 數據 ➡️ 失敗自動轉用 Yahoo Finance 計算")
 
-# 初始化 Session State
-if 'scan_results' not in st.session_state:
-    st.session_state['scan_results'] = None
+# --- 內置 Nasdaq 100 完整名單 (免去爬蟲錯誤) ---
+# 這裡列出了主要的成分股，確保一定有數據
+NASDAQ_100 = [
+    "NVDA", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "AVGO", "COST",
+    "AMD", "NFLX", "PEP", "LIN", "ADBE", "CSCO", "TMUS", "QCOM", "TXN", "INTU",
+    "AMGN", "INTC", "ISRG", "HON", "AMAT", "BKNG", "SBUX", "MDLZ", "GILD", "ADP",
+    "VRTX", "LRCX", "REGN", "ADI", "PANW", "MU", "SNPS", "KLAC", "CDNS", "CHTR",
+    "CSX", "MAR", "PYPL", "ASML", "ORLY", "MNST", "NXPI", "ROP", "LULU", "AEP",
+    "ADSK", "PDD", "WDAY", "FTNT", "KDP", "PAYX", "CTAS", "PCAR", "MCHP", "ODFL",
+    "ROST", "MRVL", "IDXX", "AIG", "FAST", "EXC", "VRSK", "CPRT", "BKR", "CTSH",
+    "CEG", "XEL", "EA", "CSGP", "GEHC", "BIIB", "ON", "DXCM", "TEAM", "CDW",
+    "GFS", "FANG", "DLTR", "ANSS", "WBD", "ILMN", "TTD", "WBA", "SIRI", "ZM",
+    "CRWD", "NET", "DDOG", "ZS", "MSTR", "COIN", "PLTR", "ARM", "SMCI", "UBER"
+]
 
 # ==========================================
-# 2. 獲取股票名單 (防彈版)
+# 2. 核心功能：混合數據獲取 (Hybrid Fetch)
 # ==========================================
-@st.cache_data
-def get_nasdaq100():
-    # 嘗試 1: Wikipedia
-    headers = {'User-Agent': 'Mozilla/5.0'}
-    tickers = []
+
+# --- A. 嘗試用 TradingView 獲取 ---
+def get_data_from_tv(symbol):
     try:
-        url = 'https://en.wikipedia.org/wiki/Nasdaq-100'
-        response = requests.get(url, headers=headers, timeout=5)
-        tables = pd.read_html(StringIO(response.text))
-        for table in tables:
-            if 'Ticker' in table.columns:
-                tickers = table['Ticker'].tolist()
-                break
+        handler = TA_Handler(
+            symbol=symbol,
+            screener="america",
+            exchange="NASDAQ",
+            interval=Interval.INTERVAL_1_DAY
+        )
+        analysis = handler.get_analysis()
+        if analysis:
+            ind = analysis.indicators
+            return {
+                "close": ind.get("close"),
+                "rsi": ind.get("RSI"),
+                "sma10": ind.get("SMA10"),
+                "sma20": ind.get("SMA20"),
+                "sma50": ind.get("SMA50"),
+                "sma150": ind.get("SMA100"), # TV API 默認可能沒有150，用100近似或需自定義，這裡暫用100
+                "sma200": ind.get("SMA200"),
+                "source": "TradingView"
+            }
     except:
-        pass
+        return None
+    return None
+
+# --- B. 失敗後用 Yahoo Finance 獲取並計算 ---
+def get_data_from_yf(symbol):
+    try:
+        # 下載過去 1.5 年數據以計算 200MA
+        df = yf.download(symbol, period="2y", progress=False)
+        if df.empty or len(df) < 200:
+            return None
+        
+        # 處理多層索引 (如果有的話)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = df.columns.get_level_values(0)
+
+        # 計算指標
+        close = df['Close'].iloc[-1]
+        
+        # 計算 MA
+        sma10 = df['Close'].rolling(window=10).mean().iloc[-1]
+        sma20 = df['Close'].rolling(window=20).mean().iloc[-1]
+        sma50 = df['Close'].rolling(window=50).mean().iloc[-1]
+        sma150 = df['Close'].rolling(window=150).mean().iloc[-1]
+        sma200 = df['Close'].rolling(window=200).mean().iloc[-1]
+        
+        # 計算 RSI
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs)).iloc[-1]
+        
+        return {
+            "close": float(close),
+            "rsi": float(rsi),
+            "sma10": float(sma10),
+            "sma20": float(sma20),
+            "sma50": float(sma50),
+            "sma150": float(sma150),
+            "sma200": float(sma200),
+            "source": "Yahoo Finance"
+        }
+    except:
+        return None
+
+# --- C. 混合調用函數 ---
+def get_stock_data(symbol):
+    # 1. 先試 TradingView
+    data = get_data_from_tv(symbol)
     
-    # 嘗試 2: 後備名單
-    if not tickers:
-        st.toast("⚠️ 正在使用後備名單掃描...", icon="ℹ️")
-        tickers = [
-            "NVDA", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST", "AMD",
-            "NFLX", "INTC", "QCOM", "TXN", "HON", "AMGN", "SBUX", "GILD", "ADP", "BKNG",
-            "MDLZ", "ISRG", "REGN", "VRTX", "LRCX", "MU", "CSX", "PANW", "KLAC", "SNPS",
-            "CRWD", "NET", "DDOG", "ZS", "MSTR", "COIN", "PLTR", "ARM", "SMCI"
-        ]
-    
-    return [t.replace('.', '-') for t in tickers]
+    # 2. 如果 TV 失敗，轉用 Yahoo
+    if data is None:
+        data = get_data_from_yf(symbol)
+        
+    return data
 
 # ==========================================
-# 3. 顯示 TradingView 圖表 (含 10/20/50/200 MA)
+# 3. J Law 篩選邏輯
 # ==========================================
-def show_tv_widget(symbol):
+def scan_jlaw_strategy(tickers, strategy):
+    results = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+    
+    for i, ticker in enumerate(tickers):
+        progress_bar.progress((i + 1) / len(tickers))
+        status_text.text(f"分析中 ({i+1}/{len(tickers)}): {ticker}")
+        
+        # 獲取數據 (自動切換源)
+        data = get_stock_data(ticker)
+        
+        if data:
+            close = data['close']
+            sma10 = data['sma10']
+            sma20 = data['sma20']
+            sma50 = data['sma50']
+            sma150 = data['sma150']
+            sma200 = data['sma200']
+            rsi = data['rsi']
+            
+            # 防呆：確保所有指標都有數值
+            if None in [close, sma10, sma20, sma50, sma200]:
+                continue
+                
+            is_match = False
+            signal = ""
+            
+            # --- 策略 1: 冠軍突破 (Strong Trend) ---
+            if strategy == "冠軍模式 (Trend Template)":
+                # 條件：多頭排列 (50 > 150 > 200) 且 股價 > 50MA
+                trend_ok = (close > sma50) and (sma50 > sma150) and (sma150 > sma200)
+                # 動能：RSI 強
+                momentum_ok = rsi > 60
+                
+                if trend_ok and momentum_ok:
+                    is_match = True
+                    signal = "🔥 強勢多頭"
+
+            # --- 策略 2: 拉回買入 (Pullback) ---
+            elif strategy == "拉回買入 (Pullback)":
+                # 大前提：長期趨勢必須向上 (股價 > 200MA)
+                if close > sma200 and sma50 > sma200:
+                    # 檢查 10MA 拉回 (誤差 2%)
+                    if abs(close - sma10) / close <= 0.02:
+                        is_match = True
+                        signal = "🟢 10MA 支撐"
+                    # 檢查 20MA 拉回 (誤差 2%)
+                    elif abs(close - sma20) / close <= 0.02:
+                        is_match = True
+                        signal = "🟡 20MA 支撐"
+
+            # --- 策略 3: 寬鬆觀察 ---
+            elif strategy == "寬鬆模式 (測試用)":
+                if close > sma200:
+                    is_match = True
+                    signal = "✅ 趨勢向上"
+
+            if is_match:
+                results.append({
+                    "代號": ticker,
+                    "現價": round(close, 2),
+                    "RSI": round(rsi, 2),
+                    "信號": signal,
+                    "數據源": data['source'] # 顯示是用 TV 還是 Yahoo 找到的
+                })
+                
+    progress_bar.empty()
+    status_text.empty()
+    return results
+
+# ==========================================
+# 4. 顯示 TradingView Widget (含 J Law 均線)
+# ==========================================
+def show_chart(symbol):
     html_code = f"""
     <div class="tradingview-widget-container">
       <div id="tradingview_chart"></div>
@@ -73,13 +205,14 @@ def show_tv_widget(symbol):
         "locale": "zh_TW",
         "toolbar_bg": "#f1f3f6",
         "enable_publishing": false,
+        "hide_side_toolbar": false,
         "allow_symbol_change": true,
         "container_id": "tradingview_chart",
         "studies": [
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 10 }}, "title": "10 MA (短期動力)" }},
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 20 }}, "title": "20 MA (拉回支撐)" }},
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 50 }}, "title": "50 MA (中期)" }},
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 200 }}, "title": "200 MA (長期)" }}
+          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 10 }}, "title": "10 MA" }},
+          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 20 }}, "title": "20 MA" }},
+          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 50 }}, "title": "50 MA" }},
+          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 200 }}, "title": "200 MA" }}
         ]
       }}
       );
@@ -89,165 +222,49 @@ def show_tv_widget(symbol):
     components.html(html_code, height=600)
 
 # ==========================================
-# 4. 核心掃描邏輯 (新增拉回算法)
-# ==========================================
-def scan_market(tickers, mode):
-    results = []
-    progress_bar = st.progress(0)
-    status = st.empty()
-    total = len(tickers)
-    
-    for i, ticker in enumerate(tickers):
-        progress_bar.progress((i + 1) / total)
-        status.text(f"分析中: {ticker} ...")
-        
-        try:
-            handler = TA_Handler(
-                symbol=ticker,
-                screener="america",
-                exchange="", 
-                interval=Interval.INTERVAL_1_DAY
-            )
-            analysis = handler.get_analysis()
-            
-            if analysis:
-                close = analysis.indicators.get('close')
-                rsi = analysis.indicators.get('RSI')
-                sma10 = analysis.indicators.get('SMA10')
-                sma20 = analysis.indicators.get('SMA20')
-                sma50 = analysis.indicators.get('SMA50')
-                sma200 = analysis.indicators.get('SMA200')
-                
-                if not (close and sma10 and sma20 and sma50 and sma200):
-                    continue
-
-                # --- 基礎趨勢過濾 (所有策略都要符合) ---
-                # 股價必須高於 200天線，且 50天線 > 200天線 (多頭排列)
-                trend_ok = (close > sma200) and (sma50 > sma200)
-                
-                if not trend_ok:
-                    continue
-
-                is_match = False
-                note = ""
-
-                # === 策略 1: 嚴格 J Law (突破/強勢) ===
-                if mode == "嚴格 J Law (冠軍突破)":
-                    # 股價強勢，位於所有均線之上，且 RSI 強勁
-                    if (close > sma10) and (close > sma50) and (rsi > 60):
-                        is_match = True
-                        note = "🔥 強勢突破中"
-
-                # === 策略 2: 拉回買入 (Pullback) ===
-                elif mode == "J Law 拉回買入 (Pullback)":
-                    # 股價必須在 50天線之上 (確保不是暴跌)
-                    if close > sma50:
-                        # 檢查是否回調到 10MA 附近 (誤差 2.5% 內)
-                        diff_10 = abs(close - sma10) / close
-                        # 檢查是否回調到 20MA 附近 (誤差 2.5% 內)
-                        diff_20 = abs(close - sma20) / close
-                        
-                        if diff_10 < 0.025:
-                            is_match = True
-                            note = "🟢 回調至 10MA (超強勢)"
-                        elif diff_20 < 0.025:
-                            is_match = True
-                            note = "🟡 回調至 20MA (正常)"
-
-                # === 策略 3: 寬鬆模式 ===
-                elif mode == "寬鬆模式 (觀察用)":
-                    if close > sma200:
-                        is_match = True
-                        note = "✅ 趨勢向上"
-
-                if is_match:
-                    results.append({
-                        "代號": ticker,
-                        "現價": round(close, 2),
-                        "RSI": round(rsi, 2),
-                        "信號": note,
-                        "10 MA": round(sma10, 2),
-                        "20 MA": round(sma20, 2)
-                    })
-                    
-        except:
-            continue
-            
-    progress_bar.empty()
-    status.empty()
-    return results
-
-# ==========================================
-# 5. 介面操作
+# 5. UI 介面
 # ==========================================
 
-st.sidebar.header("⚙️ 掃描策略")
-scan_mode = st.sidebar.radio(
-    "請選擇策略：", 
-    ["J Law 拉回買入 (Pullback)", "嚴格 J Law (冠軍突破)", "寬鬆模式 (觀察用)"]
+st.sidebar.header("🔍 掃描設定")
+selected_strategy = st.sidebar.radio(
+    "選擇 J Law 策略：",
+    ["拉回買入 (Pullback)", "冠軍模式 (Trend Template)", "寬鬆模式 (測試用)"]
 )
 
-st.sidebar.info("""
-**策略說明：**
-*   **拉回買入**：適合想「低吸」的交易者。尋找回調至 10/20MA 的股票。
-*   **冠軍突破**：適合想「追強」的交易者。尋找 RSI 強勁且創新高的股票。
-""")
-
-if st.sidebar.button("🔍 開始掃描", type="primary"):
-    with st.spinner(f"正在執行：{scan_mode}..."):
-        stock_list = get_nasdaq100()
-    
-    if stock_list:
-        results = scan_market(stock_list, scan_mode)
+if st.sidebar.button("開始掃描", type="primary"):
+    with st.spinner("正在啟動混合引擎掃描 Nasdaq 100..."):
+        results = scan_jlaw_strategy(NASDAQ_100, selected_strategy)
+        
         if results:
             df = pd.DataFrame(results)
-            # 將符合條件的股票存入 Session State
+            # 優先顯示數據源和 RSI
             st.session_state['scan_results'] = df
         else:
-            st.warning("⚠️ 沒有股票符合當前條件。嘗試切換策略或等待市況好轉。")
+            st.warning("沒有股票符合條件。")
             st.session_state['scan_results'] = None
 
-# --- 顯示結果 ---
+# 顯示結果區域
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader(f"📋 掃描結果: {scan_mode}")
-    
-    if st.session_state['scan_results'] is not None:
-        df_res = st.session_state['scan_results']
-        
-        # 顯示數量
-        st.write(f"共找到 {len(df_res)} 隻股票")
-        
-        # 顯示表格 (Highlight RSI)
-        st.dataframe(
-            df_res.style.background_gradient(subset=['RSI'], cmap='Greens'),
-            use_container_width=True,
-            hide_index=True
-        )
+    st.subheader(f"📋 結果 ({selected_strategy})")
+    if st.session_state.get('scan_results') is not None:
+        df = st.session_state['scan_results']
+        st.write(f"共找到 {len(df)} 隻股票")
+        st.dataframe(df, use_container_width=True, hide_index=True)
         
         st.divider()
-        st.write("👇 **點擊下方選擇股票看圖：**")
-        selected_ticker = st.selectbox("股票代號", df_res['代號'].tolist())
-
+        target_stock = st.selectbox("👉 選擇股票查看圖表：", df['代號'].tolist())
     else:
-        st.info("👈 請在左側點擊按鈕開始。")
-        selected_ticker = None
+        st.info("👈 請點擊左側按鈕開始")
+        target_stock = None
 
 with col2:
-    st.subheader("📈 J Law 技術分析圖")
-    if selected_ticker:
-        # 獲取選中股票的詳細信息
-        row = df_res[df_res['代號'] == selected_ticker].iloc[0]
-        
-        # 顯示信號提示
-        if "拉回" in row['信號']:
-            st.success(f"🎯 **交易機會：{row['信號']}**")
-            st.caption("建議觀察：股價是否在均線處出現「止跌回升」的K線形態（如錘頭線、長下影線）。")
-        elif "突破" in row['信號']:
-            st.warning(f"🔥 **交易機會：{row['信號']}**")
-            st.caption("建議觀察：成交量是否配合放大？")
-            
-        show_tv_widget(selected_ticker)
+    st.subheader("📈 實時圖表")
+    if target_stock:
+        # 顯示是用哪個數據源找到的
+        row = df[df['代號'] == target_stock].iloc[0]
+        st.caption(f"數據來源: {row['數據源']} | 信號: {row['信號']}")
+        show_chart(target_stock)
     else:
-        st.write("等待掃描結果...")
+        st.write("請先掃描並選擇股票。")
