@@ -1,37 +1,43 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import requests
 import streamlit.components.v1 as components
-from io import StringIO
+from datetime import datetime, timedelta
 
 # ==========================================
-# 1. 系統設置
+# 1. 系統設置 & 頁面配置
 # ==========================================
-st.set_page_config(page_title="J Law 冠軍操盤室 (戰術版)", layout="wide", page_icon="⚔️")
+st.set_page_config(page_title="J Law 冠軍操盤室 (Pro)", layout="wide", page_icon="⚔️")
 
-st.title("⚔️ J Law 冠軍操盤室：智能戰術執行板")
+# 自定義 CSS 美化
 st.markdown("""
-**核心功能**：不僅幫你選股，更提供完整的 **J Law 拉回買入 (Pullback) 交易劇本**。
-**重點指標**：支撐測試 (10/20MA) + 縮量 (Volume Dry Up) + 突破確認 (Confirmation)。
+<style>
+    .metric-card {background-color: #f0f2f6; border-radius: 10px; padding: 15px; margin: 10px 0;}
+    .stAlert {margin-top: 10px;}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("⚔️ J Law 冠軍操盤室：智能戰術執行板 (Pro)")
+st.markdown("""
+> **核心戰法**：尋找上升趨勢中的 **「網球行為 (Tennis Ball Action)」**。
+> **掃描標準**：股價 > 50MA (趨勢向上) + 拉回測試 10/20MA (支撐) + 量縮 (賣壓竭盡)。
 """)
 
 if 'scan_results' not in st.session_state:
     st.session_state['scan_results'] = None
 
 # ==========================================
-# 2. 數據獲取
+# 2. 數據獲取 (股票池)
 # ==========================================
 @st.cache_data
 def get_nasdaq100_tickers():
+    # 常見強勢股清單
     return [
-        "NVDA", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "GOOG", "TSLA", "AVGO", "COST",
-        "AMD", "NFLX", "PEP", "LIN", "ADBE", "CSCO", "TMUS", "QCOM", "TXN", "INTU",
-        "AMGN", "INTC", "ISRG", "HON", "AMAT", "BKNG", "SBUX", "MDLZ", "GILD", "ADP",
-        "VRTX", "LRCX", "REGN", "ADI", "PANW", "MU", "SNPS", "KLAC", "CDNS", "CHTR",
-        "CSX", "MAR", "PYPL", "ASML", "ORLY", "MNST", "NXPI", "ROP", "LULU", "AEP",
-        "ADSK", "PDD", "WDAY", "FTNT", "KDP", "PAYX", "CTAS", "PCAR", "MCHP", "ODFL",
-        "CRWD", "NET", "DDOG", "ZS", "MSTR", "COIN", "PLTR", "ARM", "SMCI", "UBER"
+        "NVDA", "MSFT", "AAPL", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST",
+        "AMD", "NFLX", "QCOM", "TXN", "AMAT", "BKNG", "ADP", "ADI", "MU", "LRCX",
+        "INTC", "CSCO", "TMUS", "PEP", "LIN", "ADBE", "ISRG", "VRTX", "REGN",
+        "PANW", "SNPS", "CDNS", "KLAC", "CRWD", "MSTR", "COIN", "PLTR", "ARM", "SMCI",
+        "UBER", "ABNB", "DASH", "NET", "DDOG", "ZS", "APP", "CVNA", "HIMS"
     ]
 
 # ==========================================
@@ -39,12 +45,17 @@ def get_nasdaq100_tickers():
 # ==========================================
 def analyze_stock_deep(ticker, df):
     try:
-        # 提取數據
-        close = df['Close'].iloc[-1]
-        prev_close = df['Close'].iloc[-2]
-        high = df['High'].iloc[-1]
-        low = df['Low'].iloc[-1]
-        vol = df['Volume'].iloc[-1]
+        # 確保數據足夠
+        if len(df) < 200: return None
+
+        # 提取數據 (最新一筆)
+        curr = df.iloc[-1]
+        prev = df.iloc[-2]
+        
+        close = curr['Close']
+        high = curr['High']
+        low = curr['Low']
+        vol = curr['Volume']
         
         # 計算均線
         sma10 = df['Close'].rolling(10).mean().iloc[-1]
@@ -54,9 +65,10 @@ def analyze_stock_deep(ticker, df):
         
         # 計算平均成交量 (50日)
         avg_vol_50 = df['Volume'].rolling(50).mean().iloc[-1]
-        vol_ratio = vol / avg_vol_50 # 量能比
+        if avg_vol_50 == 0: return None
+        vol_ratio = vol / avg_vol_50 
         
-        # 計算 RSI
+        # 計算 RSI (14)
         delta = df['Close'].diff()
         gain = (delta.where(delta > 0, 0)).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
@@ -65,223 +77,317 @@ def analyze_stock_deep(ticker, df):
 
         # --- 策略邏輯判斷 ---
         setup_found = False
-        reasons = [] # 儲存買入原因
+        reasons = [] 
         setup_name = ""
-        support_level = 0
         
-        # 1. 大趨勢過濾
+        # 1. 大趨勢過濾 (必須在 200MA 之上)
         if close > sma200 and sma50 > sma200:
             
-            # --- 拉回策略 ---
-            # 必須在中期上升趨勢中 (股價 > 50MA)
+            # 2. 中期趨勢 (股價 > 50MA)
             if close > sma50:
                 
-                # 檢查 10MA (誤差 1.5%)
+                # 計算與均線的距離 (百分比)
                 dist_10 = abs(low - sma10) / sma10
-                # 檢查 20MA (誤差 1.5%)
                 dist_20 = abs(low - sma20) / sma20
                 
-                if dist_10 <= 0.015:
+                # A. 超級強勢 (Super Strength) - 測試 10MA
+                if dist_10 <= 0.02 and low >= sma10 * 0.98: # 放寬一點容錯率
                     setup_found = True
-                    setup_name = "🟢 10MA 強力支撐 (Super Strength)"
-                    support_level = sma10
-                    reasons.append("股價回調至 10天移動平均線，顯示極強勢的買盤支撐。")
+                    setup_name = "🟢 10MA 強力支撐"
+                    reasons.append("股價強勢整理，回測 10MA 未跌破。")
                 
-                elif dist_20 <= 0.015:
+                # B. 標準波段 (Tennis Ball) - 測試 20MA
+                elif dist_20 <= 0.02 and low >= sma20 * 0.98:
                     setup_found = True
-                    setup_name = "🟡 20MA 標準拉回 (Tennis Ball Action)"
-                    support_level = sma20
-                    reasons.append("股價回調至 20天移動平均線，這是最經典的波段買點。")
+                    setup_name = "🟡 20MA 網球反彈"
+                    reasons.append("經典波段買點，回測 20MA 尋求支撐。")
             
-            # --- 冠軍突破策略 ---
-            elif rsi > 65 and close > sma10:
+            # C. 動能突破 (Momentum Breakout)
+            if rsi > 60 and rsi < 80 and close > sma10 and close > prev['Close'] * 1.03:
                  setup_found = True
-                 setup_name = "🔥 動能突破 (High Momentum)"
-                 support_level = sma10
-                 reasons.append("RSI 強勢 (>65)，股價站穩短期均線，準備發動攻勢。")
+                 setup_name = "🔥 強力突破發動"
+                 reasons.append("單日大漲 >3% 且 RSI 強勢，動能回歸。")
 
-            # --- 量能分析 (J Law 重點) ---
+            # --- 綜合過濾 ---
             if setup_found:
-                if vol_ratio < 0.8:
-                    reasons.append(f"✅ **縮量回調 (Volume Dry Up)**：今日成交量僅為平均的 {int(vol_ratio*100)}%。這代表賣壓已經枯竭，大戶沒有出貨。")
-                elif vol_ratio > 1.2:
-                    reasons.append(f"⚠️ **放量注意**：今日成交量較大 ({int(vol_ratio*100)}%)，請確認收盤是否收在均線之上（有承接）。")
-                else:
-                    reasons.append("量能正常。")
-
-                # 計算交易參數
-                buy_trigger = high + 0.05 # 突破今日高點
-                stop_loss = low - 0.05    # 跌破今日低點
-                risk = buy_trigger - stop_loss
-                target = buy_trigger + (risk * 3) # 3R 目標
+                # 量能分析
+                if vol_ratio < 0.75:
+                    reasons.append(f"✅ **極致縮量**：量能僅平均 {int(vol_ratio*100)}%，賣壓枯竭。")
+                elif vol_ratio > 1.5 and close > prev['Close']:
+                    reasons.append(f"🚀 **放量攻擊**：量能放大至 {int(vol_ratio*100)}%，機構進場。")
                 
+                # 計算交易參數 (Setup Parameters)
+                buy_trigger = high + 0.02  # 突破今日高點才買
+                stop_loss = low - 0.02     # 跌破今日低點止損
+                
+                # 防止止損過窄
+                atr = (df['High'] - df['Low']).rolling(14).mean().iloc[-1]
+                if (buy_trigger - stop_loss) < atr * 0.5:
+                    stop_loss = buy_trigger - atr # 至少給 1 ATR 的空間
+
+                risk = buy_trigger - stop_loss
+                target = buy_trigger + (risk * 3) # 3R
+
                 return {
                     "代號": ticker,
                     "現價": round(close, 2),
                     "策略": setup_name,
                     "RSI": round(rsi, 1),
+                    "漲跌幅": round(((close - prev['Close'])/prev['Close'])*100, 2),
                     "買入原因": reasons,
                     "買入觸發": round(buy_trigger, 2),
                     "止損": round(stop_loss, 2),
                     "目標": round(target, 2),
-                    "風險": round((risk / buy_trigger) * 100, 2)
+                    "風險益比": "1:3",
+                    "成交量比": round(vol_ratio, 2)
                 }
-                
-    except:
+    except Exception as e:
         return None
     return None
 
 # ==========================================
-# 4. 顯示詳細戰術板 (UI 核心)
+# 4. 輔助功能：獲取基本面與新聞
+# ==========================================
+def get_stock_info(symbol):
+    try:
+        t = yf.Ticker(symbol)
+        info = t.info
+        
+        # 處理財報日期 (嘗試獲取下一次財報)
+        earnings_date = "N/A"
+        try:
+            cal = t.calendar
+            if cal is not None and not cal.empty:
+                # 兼容不同版本的 yfinance 輸出
+                if 'Earnings Date' in cal.index:
+                     earnings_date = cal.loc['Earnings Date'][0].strftime('%Y-%m-%d')
+                elif 'Earnings Low' in cal: # 新版可能返回DataFrame
+                     earnings_date = cal.iloc[0, 0] # 簡單取第一個日期
+        except:
+            pass
+            
+        return {
+            "產業": info.get('sector', 'N/A'),
+            "行業": info.get('industry', 'N/A'),
+            "市值": f"{info.get('marketCap', 0) / 1000000000:.2f} B",
+            "本益比": info.get('trailingPE', 'N/A'),
+            "下季財報": earnings_date,
+            "描述": info.get('longBusinessSummary', '無描述')[:200] + "..."
+        }, t.news
+    except:
+        return None, []
+
+# ==========================================
+# 5. UI 顯示邏輯 (戰術板)
 # ==========================================
 def show_tactical_board(data):
     st.markdown("---")
     
-    # 標題區
-    c1, c2 = st.columns([2, 1])
-    with c1:
-        st.subheader(f"📊 {data['代號']} 交易戰術分析")
-        st.caption(f"策略模式：{data['策略']} | RSI: {data['RSI']}")
-    with c2:
-        # 風險提示
-        if data['風險'] < 5:
-            st.success(f"風險度：{data['風險']}% (低風險 ✅)")
+    # 頂部標題與即時狀態
+    col_h1, col_h2 = st.columns([3, 1])
+    with col_h1:
+        st.header(f"🦅 {data['代號']} 戰術儀表板")
+        color = "green" if data['漲跌幅'] > 0 else "red"
+        st.markdown(f"**現價**: ${data['現價']} (<span style='color:{color}'>{data['漲跌幅']}%</span>) | **策略**: {data['策略']}", unsafe_allow_html=True)
+    
+    with col_h2:
+        st.markdown("#### 建議倉位")
+        # 簡單的動態倉位建議
+        if data['RSI'] > 70:
+            st.warning("⚠️ RSI 過高，半倉嘗試")
         else:
-            st.warning(f"風險度：{data['風險']}% (中等，注意倉位)")
+            st.success("✅ 標準倉位")
 
-    # 內容區
-    col_left, col_right = st.columns([1, 1])
-    
-    with col_left:
-        st.markdown("#### 🧐 為什麼選這隻？ (Why)")
-        for reason in data['買入原因']:
-            st.write(f"- {reason}")
-            
-        st.info("""
-        **💡 J Law 心法：**
-        我們不在股價下跌時買入，我們等待「網球行為」(Tennis Ball Action)。
-        當股價碰到均線像網球一樣反彈，並且**成交量縮小**，就是機會。
-        """)
+    # 分頁功能：圖表 / 交易計劃 / 基本面 / 新聞
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 技術圖表", "📝 交易計劃", "🏢 基本面數據", "📰 相關新聞"])
 
-    with col_right:
-        st.markdown("#### 🛠️ 如何執行交易？ (How)")
-        st.markdown(f"""
-        1.  **設定警報 (Alert)**：在股價 **${data['買入觸發']}** 設定到價提示。
-        2.  **買入時機**：當股價**升破** ${data['買入觸發']} (昨日高點) 時進場。這代表調整結束，多頭回歸。
-        3.  **設定止損**：買入後立刻設定止損單在 **${data['止損']}** (昨日低點下方)。
-        4.  **獲利目標**：第一目標看 **${data['目標']}** (3倍風險回報)。
-        """)
-    
-    # 關鍵數據橫幅
-    st.markdown("### 🔑 關鍵價位 Key Levels")
-    k1, k2, k3 = st.columns(3)
-    k1.metric("🟢 買入觸發 (Trigger)", f"${data['買入觸發']}")
-    k2.metric("🔴 止損防守 (Stop)", f"${data['止損']}")
-    k3.metric("🎯 獲利目標 (Target)", f"${data['目標']}")
+    with tab1:
+        # TradingView Widget
+        html_code = f"""
+        <div class="tradingview-widget-container">
+          <div id="tradingview_chart"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+          <script type="text/javascript">
+          new TradingView.widget(
+          {{
+            "width": "100%",
+            "height": 550,
+            "symbol": "{data['代號']}",
+            "interval": "D",
+            "timezone": "Exchange",
+            "theme": "dark",
+            "style": "1",
+            "locale": "zh_TW",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "container_id": "tradingview_chart",
+            "studies": [
+              {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 10 }}, "title": "10 MA" }},
+              {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 20 }}, "title": "20 MA" }},
+              {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 50 }}, "title": "50 MA" }}
+            ]
+          }}
+          );
+          </script>
+        </div>
+        """
+        components.html(html_code, height=560)
 
-    # TradingView Widget
-    html_code = f"""
-    <div class="tradingview-widget-container">
-      <div id="tradingview_chart"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget(
-      {{
-        "width": "100%",
-        "height": 500,
-        "symbol": "{data['代號']}",
-        "interval": "D",
-        "timezone": "Exchange",
-        "theme": "dark",
-        "style": "1",
-        "locale": "zh_TW",
-        "toolbar_bg": "#f1f3f6",
-        "enable_publishing": false,
-        "hide_side_toolbar": false,
-        "allow_symbol_change": true,
-        "container_id": "tradingview_chart",
-        "studies": [
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 10 }}, "title": "10 MA" }},
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 20 }}, "title": "20 MA" }},
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 50 }}, "title": "50 MA" }},
-          {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 200 }}, "title": "200 MA" }}
-        ]
-      }}
-      );
-      </script>
-    </div>
-    """
-    components.html(html_code, height=500)
+    with tab2:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("🟢 買入觸發 (Stop Buy)", f"${data['買入觸發']}")
+        c2.metric("🔴 止損價格 (Stop Loss)", f"${data['止損']}")
+        c3.metric("🎯 獲利目標 (Target)", f"${data['目標']}")
+        
+        st.markdown("### 執行邏輯")
+        st.info("此策略採用「突破確認」機制。不要直接市價買入，請設定 Stop Limit 單在「買入觸發」價位。")
+        st.markdown("**符合條件原因：**")
+        for r in data['買入原因']:
+            st.write(f"- {r}")
+
+    with tab3:
+        with st.spinner("正在加載基本面數據..."):
+            info, _ = get_stock_info(data['代號'])
+            if info:
+                i1, i2, i3 = st.columns(3)
+                i1.write(f"**產業**: {info['產業']}")
+                i2.write(f"**市值**: ${info['市值']}")
+                i3.write(f"**本益比**: {info['本益比']}")
+                
+                st.write(f"**所屬行業**: {info['行業']}")
+                st.warning(f"📅 **預計財報日**: {info['下季財報']} (交易前請確認是否接近)")
+                st.caption(f"公司簡介: {info['描述']}")
+            else:
+                st.error("無法獲取基本面數據")
+
+    with tab4:
+        with st.spinner("正在搜索新聞..."):
+            _, news_list = get_stock_info(data['代號'])
+            if news_list:
+                for n in news_list[:5]: # 只顯示前5則
+                    # 嘗試獲取縮略圖，如果沒有則不顯示
+                    try:
+                        pub_time = datetime.fromtimestamp(n['providerPublishTime']).strftime('%Y-%m-%d %H:%M')
+                        st.markdown(f"**[{n['title']}]({n['link']})**")
+                        st.caption(f"來源: {n['publisher']} | 時間: {pub_time}")
+                        st.divider()
+                    except:
+                        continue
+            else:
+                st.write("暫無相關新聞")
 
 # ==========================================
-# 5. 主程序邏輯
+# 6. 主程序邏輯
 # ==========================================
 
-# 側邊欄
+# 側邊欄控制
 st.sidebar.header("🔍 掃描設定")
-source = st.sidebar.radio("股票池", ["Nasdaq 100", "自定義 (ARK/NVDA/SMCI...)"])
-custom_input = ""
-if source == "自定義 (ARK/NVDA/SMCI...)":
-    custom_input = st.sidebar.text_area("輸入代號 (逗號分隔)", "PLTR, COIN, SMCI, ARM, MSTR, HOOD, DKNG")
+source = st.sidebar.radio("股票池來源", ["Nasdaq 精選強勢股", "自定義輸入"])
 
-if st.sidebar.button("🚀 執行戰術掃描", type="primary"):
+custom_input = ""
+if source == "自定義輸入":
+    custom_input = st.sidebar.text_area("輸入代號 (逗號分隔)", "NVDA, TSLA, PLTR, COIN, MSTR")
+    st.sidebar.caption("提示：支援美股代號")
+
+if st.sidebar.button("🚀 啟動戰術掃描", type="primary"):
     target_list = []
-    if source == "Nasdaq 100":
+    
+    # 決定掃描列表
+    if source == "Nasdaq 精選強勢股":
         target_list = get_nasdaq100_tickers()
     else:
         if custom_input:
             target_list = [x.strip().upper() for x in custom_input.split(',')]
         else:
             st.error("請輸入股票代號")
-            
-    if target_list:
-        with st.spinner("正在分析市場結構與量價關係..."):
-            # 下載數據
-            data = yf.download(target_list, period="1y", group_by='ticker', progress=False)
-            
-            results = []
-            progress = st.progress(0)
-            
-            for i, ticker in enumerate(target_list):
-                progress.progress((i + 1) / len(target_list))
-                try:
-                    if len(target_list) == 1:
-                        df = data
-                    else:
-                        df = data[ticker]
-                    
-                    df = df.dropna()
-                    if not df.empty and len(df) > 200:
-                        res = analyze_stock_deep(ticker, df)
-                        if res:
-                            results.append(res)
-                except:
-                    continue
-            
-            progress.empty()
-            
-            if results:
-                st.session_state['scan_results'] = pd.DataFrame(results)
-            else:
-                st.warning("沒有發現符合 J Law 嚴格標準的股票。")
-                st.session_state['scan_results'] = None
 
-# 顯示結果
+    if target_list:
+        with st.spinner("正在進行多維度運算 (價格結構/RSI/量能)..."):
+            # 批量下載數據優化 (避免多次請求)
+            try:
+                # yfinance 批量下載
+                raw_data = yf.download(target_list, period="1y", group_by='ticker', threads=True, progress=False)
+                
+                results = []
+                progress_bar = st.progress(0)
+                
+                for i, ticker in enumerate(target_list):
+                    progress_bar.progress((i + 1) / len(target_list))
+                    
+                    # 處理單一股票與多股票的數據結構差異
+                    try:
+                        if len(target_list) == 1:
+                            df_stock = raw_data
+                        else:
+                            # 提取特定股票的 DataFrame
+                            df_stock = raw_data[ticker]
+                        
+                        # 清洗數據
+                        df_stock = df_stock.dropna(how='all') 
+                        
+                        if not df_stock.empty:
+                            res = analyze_stock_deep(ticker, df_stock)
+                            if res:
+                                results.append(res)
+                    except KeyError:
+                        continue # 略過無效代號
+                    except Exception as e:
+                        continue
+                
+                progress_bar.empty()
+                
+                if results:
+                    st.session_state['scan_results'] = pd.DataFrame(results)
+                    st.success(f"掃描完成！發現 {len(results)} 隻符合戰術型態的股票。")
+                else:
+                    st.warning("掃描完成，但沒有發現符合嚴格標準的股票。建議放寬篩選條件或等待機會。")
+                    st.session_state['scan_results'] = None
+            except Exception as e:
+                st.error(f"數據下載發生錯誤: {str(e)}")
+
+# 顯示結果區域
 if st.session_state['scan_results'] is not None:
-    df = st.session_state['scan_results']
+    df_res = st.session_state['scan_results']
     
-    # 選擇股票
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.subheader("📋 符合清單")
-        st.write(f"共 {len(df)} 隻")
-        st.dataframe(df[['代號', '策略', 'RSI']], use_container_width=True, hide_index=True)
-        target = st.selectbox("👇 點擊查看戰術詳情：", df['代號'].tolist())
+    # 佈局：左側列表，右側詳情
+    col_list, col_detail = st.columns([1, 2])
     
-    with c2:
-        if target:
-            # 獲取該行數據轉為字典
-            row_dict = df[df['代號'] == target].to_dict('records')[0]
-            show_tactical_board(row_dict)
+    with col_list:
+        st.subheader("📋 候選清單")
+        
+        # 簡單過濾器
+        sort_by = st.selectbox("排序方式", ["RSI", "成交量比", "漲跌幅"])
+        df_res = df_res.sort_values(by=sort_by, ascending=False)
+        
+        # 互動表格
+        st.dataframe(
+            df_res[['代號', '策略', 'RSI', '成交量比']], 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "成交量比": st.column_config.ProgressColumn(
+                    "量能比 (1.0=均量)", min_value=0, max_value=2, format="%.2f"
+                ),
+                "RSI": st.column_config.NumberColumn("RSI 強度", format="%.0f")
+            }
+        )
+        
+        # 選擇器
+        selected_ticker = st.selectbox("👇 選擇股票查看詳情：", df_res['代號'].unique())
+
+    with col_detail:
+        if selected_ticker:
+            # 從 DataFrame 中獲取該股票的數據
+            row_data = df_res[df_res['代號'] == selected_ticker].iloc[0].to_dict()
+            show_tactical_board(row_data)
+
 else:
-    st.info("👈 請在左側開始掃描")
+    # 初始歡迎畫面
+    st.info("👈 請在左側側邊欄選擇股票池並點擊「啟動戰術掃描」")
+    st.markdown("""
+    ### 🛠️ 使用說明
+    1. **策略原理**：此系統自動過濾垃圾股，只尋找「強勢股回調」的機會。
+    2. **買入觸發**：系統給出的價格是「突破買入價」，未突破前請勿進場。
+    3. **風險控制**：嚴格遵守止損與 3R 獲利目標。
+    """)
