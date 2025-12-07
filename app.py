@@ -1,232 +1,269 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-import plotly.graph_objects as go
+import streamlit.components.v1 as components
 from datetime import datetime
 
 # ==========================================
 # 1. 系統設置
 # ==========================================
-st.set_page_config(page_title="J Law 自動戰術掃描器", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="J Law 冠軍操盤室 (Auto-Scan)", layout="wide", page_icon="⚔️")
 
-st.title("🦅 J Law 冠軍操盤室：自動戰術掃描系統")
 st.markdown("""
-**系統邏輯**：此程式會自動遍歷股票清單，尋找符合 **M.E.T.A.** 標準的股票。
-1.  **趨勢向上** (Price > 200MA)
-2.  **回測支撐** (Price touching 10MA or 20MA)
-3.  **成交量縮** (Volume < Average Volume)
+<style>
+    .reportview-container { margin-top: -2em; }
+    .stDeployButton {display:none;}
+    footer {visibility: hidden;}
+    #MainMenu {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+st.title("⚔️ J Law 冠軍操盤室：全自動戰術掃描系統")
+st.markdown("""
+**系統邏輯**：自動遍歷 **Nasdaq 100** 及 **S&P 500** 成分股，尋找符合 J Law **「網球行為」** 的設置。
+**輸出內容**：自動計算 **買入觸發價**、**止損價** 及 **戰術理由**。
 """)
 
 # ==========================================
-# 2. 數據源與股票池
+# 2. 股票池定義 (S&P 500 & Nasdaq 100)
 # ==========================================
-def get_nasdaq_100():
-    # 這裡列出部分 Nasdaq 100 及熱門股，為了速度演示，您可以自行增加
-    return [
+@st.cache_data
+def get_stock_universe(market_type):
+    # 這裡為了演示速度，列出了流動性最好的頭部股票
+    # 實際運作時，你可以擴充這個列表到完整的 500 隻
+    nasdaq_100 = [
         "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST", 
-        "AMD", "NFLX", "PEP", "CSCO", "TMUS", "QCOM", "TXN", "AMGN", "INTU", 
-        "INTC", "ISRG", "HON", "AMAT", "BKNG", "SBUX", "MDLZ", "ADP", "GILD", 
-        "LRCX", "ADI", "VRTX", "REGN", "PANW", "MU", "SNPS", "KLAC", "CDNS", 
-        "CHTR", "CSX", "MAR", "PYPL", "ASML", "MNST", "ORLY", "ODFL", "LULU", 
-        "MSTR", "COIN", "PLTR", "SOFI", "AFRM", "UPST", "DKNG", "HOOD", "RBLX",
-        "UBER", "ABNB", "DASH", "NET", "DDOG", "ZS", "CRWD", "TTD", "APP"
+        "AMD", "NFLX", "PEP", "LIN", "ADBE", "CSCO", "TMUS", "QCOM", "TXN", "INTU", 
+        "AMGN", "INTC", "ISRG", "HON", "AMAT", "BKNG", "SBUX", "MDLZ", "ADP", "GILD", 
+        "LRCX", "ADI", "VRTX", "REGN", "PANW", "MU", "SNPS", "KLAC", "CDNS", "CHTR", 
+        "CSX", "MAR", "PYPL", "ASML", "MNST", "ORLY", "ODFL", "LULU", "MSTR", "COIN", 
+        "PLTR", "ARM", "SMCI", "UBER", "CRWD", "ZS", "NET", "DDOG", "TTD", "APP"
     ]
+    
+    sp_500_select = [
+        "JPM", "V", "JNJ", "WMT", "PG", "MA", "HD", "CVX", "MRK", "ABBV", "KO", 
+        "PEP", "BAC", "COST", "MCD", "DIS", "CSCO", "ABT", "DHR", "NEE", "VZ", 
+        "WFC", "PM", "CMCSA", "NKE", "UPS", "RTX", "BMY", "PFE", "LOW", "UNP", 
+        "CAT", "GS", "GE", "IBM", "HON", "AMGN", "DE", "CAT", "BA", "MMM"
+    ]
+    
+    if market_type == "Nasdaq 100":
+        return list(set(nasdaq_100)) # 去重
+    elif market_type == "S&P 500 (精選)":
+        return list(set(sp_500_select))
+    else:
+        return list(set(nasdaq_100 + sp_500_select))
 
 # ==========================================
-# 3. J Law 核心篩選演算法
+# 3. J Law 核心策略運算 (Logic Core)
 # ==========================================
-def check_jlaw_criteria(ticker, df):
+def analyze_market_structure(ticker, df):
     try:
-        # 確保數據足夠計算 200MA
-        if len(df) < 200:
-            return None
-
-        # 取得最新數據
-        current_close = df['Close'].iloc[-1]
-        current_low = df['Low'].iloc[-1]
-        current_volume = df['Volume'].iloc[-1]
+        if len(df) < 200: return None
+        
+        # 取得最新數據 (Latest Candle)
+        curr = df.iloc[-1]
+        prev = df.iloc[-2]
+        
+        close = curr['Close']
+        low = curr['Low']
+        high = curr['High']
+        volume = curr['Volume']
         
         # 計算均線
-        sma10 = df['Close'].rolling(window=10).mean().iloc[-1]
-        sma20 = df['Close'].rolling(window=20).mean().iloc[-1]
-        sma50 = df['Close'].rolling(window=50).mean().iloc[-1]
-        sma200 = df['Close'].rolling(window=200).mean().iloc[-1]
+        sma10 = df['Close'].rolling(10).mean().iloc[-1]
+        sma20 = df['Close'].rolling(20).mean().iloc[-1]
+        sma50 = df['Close'].rolling(50).mean().iloc[-1]
+        sma200 = df['Close'].rolling(200).mean().iloc[-1]
         
-        # 計算 50日平均成交量
-        avg_vol_50 = df['Volume'].rolling(window=50).mean().iloc[-1]
-
-        # --- J LAW 判斷邏輯 ---
+        # 計算 50日均量
+        avg_vol = df['Volume'].rolling(50).mean().iloc[-1]
+        vol_ratio = volume / avg_vol
         
-        # 條件 1: 大趨勢必須向上 (Stage 2)
-        # 股價 > 200MA 且 50MA > 200MA
-        is_uptrend = current_close > sma200 and sma50 > sma200
+        # --- 策略條件 (Conditionals) ---
         
-        if not is_uptrend:
-            return None # 趨勢不對，直接過濾掉
-
-        # 條件 2: 量能枯竭 (Volume Dry Up)
-        # 今日成交量 < 平均成交量的 85% (或者是更嚴格的 75%)
-        # 這代表回調時沒有賣壓
-        is_volume_dry = current_volume < (avg_vol_50 * 0.9) # 稍微放寬到 90% 以便捕捉更多機會
-
-        # 條件 3: 網球行為 (Tennis Ball Action) - 回測支撐
-        # 股價回落到 10MA 或 20MA 附近 (誤差範圍內)
-        
-        setup_type = ""
-        
-        # 檢查是否回測 10MA (強勢股)
-        # 邏輯：最低價觸及 10MA 附近 (正負 1.5%) 且 收盤價最好在 10MA 之上或附近
-        dist_10 = abs(current_low - sma10) / sma10
-        if dist_10 <= 0.015 and current_close >= (sma10 * 0.99):
-            setup_type = "🔥 10MA 超強勢回調"
-        
-        # 檢查是否回測 20MA (標準波段)
-        dist_20 = abs(current_low - sma20) / sma20
-        if not setup_type and dist_20 <= 0.015 and current_close >= (sma20 * 0.99):
-            setup_type = "🟡 20MA 標準回調"
-
-        # 最終判斷
-        if setup_type and is_volume_dry:
-            return {
-                "代號": ticker,
-                "現價": round(current_close, 2),
-                "策略": setup_type,
-                "成交量狀態": f"{int((current_volume/avg_vol_50)*100)}% (量縮)",
-                "MA10": round(sma10, 2),
-                "MA20": round(sma20, 2),
-                "RSI": round(compute_rsi(df), 2)
-            }
+        # 1. 趨勢過濾 (Trend Filter)
+        # J Law 只做上升趨勢：股價 > 200MA 且 50MA > 200MA
+        if not (close > sma200 and sma50 > sma200):
+            return None
             
-    except Exception as e:
+        setup_found = False
+        strategy_name = ""
+        support_level = 0.0
+        
+        # 2. 尋找回調 (Pullback Setup)
+        # 股價必須回落到 10MA 或 20MA 附近 (Price Action)
+        dist_10 = abs(low - sma10) / sma10
+        dist_20 = abs(low - sma20) / sma20
+        
+        # 容錯率設定為 1.5%
+        tolerance = 0.015 
+        
+        if dist_10 <= tolerance and close >= sma10 * 0.99:
+            setup_found = True
+            strategy_name = "🔥 10MA 超級強勢回調"
+            support_level = sma10
+        elif dist_20 <= tolerance and close >= sma20 * 0.99:
+            setup_found = True
+            strategy_name = "🟡 20MA 標準網球行為"
+            support_level = sma20
+            
+        # 3. 量能分析 (Volume Analysis)
+        # 必須縮量 (Volume Dry Up)
+        if setup_found:
+            is_dry_up = vol_ratio < 0.9 # 今日量小於均量
+            
+            if is_dry_up:
+                # --- 計算交易計劃 (Trading Plan) ---
+                
+                # 買入點：突破今日高點 (Confirmation)
+                entry_price = round(high + 0.05, 2) 
+                
+                # 止損點：今日低點下方 (Risk Management)
+                stop_loss = round(low - 0.05, 2)
+                
+                # 如果止損太近(少於2%)，建議用 ATR 或稍微拉大，這裡簡單用 20MA 或 10MA 保護
+                if (entry_price - stop_loss) / entry_price < 0.02:
+                    stop_loss = round(min(low, support_level) * 0.99, 2)
+                
+                risk = entry_price - stop_loss
+                target_price = round(entry_price + (risk * 3), 2) # 3R 回報
+                
+                reasoning = f"""
+                1. **趨勢確認**：股價位於 200MA 之上，長期趨勢向上。
+                2. **支撐測試**：股價回調至 **{strategy_name}** 位置 (${support_level:.2f})。
+                3. **量能訊號**：今日成交量僅為平均的 {int(vol_ratio*100)}%，顯示**賣壓枯竭 (Dry Up)**。
+                4. **執行**：等待股價突破 **${entry_price}** 確認買盤進場。
+                """
+                
+                return {
+                    "Ticker": ticker,
+                    "Strategy": strategy_name,
+                    "Close": round(close, 2),
+                    "Entry": entry_price,
+                    "Stop": stop_loss,
+                    "Target": target_price,
+                    "Volume": f"{int(vol_ratio*100)}%",
+                    "Reason": reasoning
+                }
+    except:
         return None
-    
     return None
 
-def compute_rsi(df, period=14):
-    delta = df['Close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    rs = gain / loss
-    return 100 - (100 / (1 + rs)).iloc[-1]
-
 # ==========================================
-# 4. 前端顯示與控制
+# 4. 前端互動介面
 # ==========================================
 
 # 側邊欄
-st.sidebar.header("🔍 掃描設定")
-scan_list = st.sidebar.radio("選擇掃描範圍", ["Nasdaq 精選 (速度快)", "自定義股票池"])
+st.sidebar.header("🎯 掃描控制台")
+market = st.sidebar.selectbox("選擇掃描市場", ["Nasdaq 100", "S&P 500 (精選)", "全部"])
+run_btn = st.sidebar.button("開始掃描", type="primary")
 
-custom_tickers = ""
-if scan_list == "自定義股票池":
-    custom_tickers = st.sidebar.text_area("輸入股票代碼 (逗號分隔)", "PLTR, SOFI, COIN, MARA, RIOT, TSLA")
+# 初始化 Session State
+if 'results' not in st.session_state:
+    st.session_state['results'] = []
 
-start_btn = st.sidebar.button("🚀 啟動 J Law 戰術掃描", type="primary")
-
-# 主畫面
-if start_btn:
-    # 決定要掃描的列表
-    target_tickers = []
-    if scan_list == "Nasdaq 精選 (速度快)":
-        target_tickers = get_nasdaq_100()
-    else:
-        target_tickers = [x.strip().upper() for x in custom_tickers.split(',')]
+# 掃描邏輯
+if run_btn:
+    tickers = get_stock_universe(market)
+    st.session_state['results'] = [] # 清空舊結果
     
-    if not target_tickers:
-        st.error("股票列表為空！")
-    else:
-        st.write(f"正在掃描 {len(target_tickers)} 隻股票，請稍候...")
+    with st.status(f"正在掃描 {len(tickers)} 隻股票...", expanded=True) as status:
+        # 批量下載數據加速
+        data = yf.download(tickers, period="1y", group_by='ticker', threads=True, progress=False)
         
-        # 進度條
         progress_bar = st.progress(0)
-        status_text = st.empty()
+        found_count = 0
         
-        # 批量下載數據 (大幅提升速度)
-        # 使用 threads 加速
-        data = yf.download(target_tickers, period="1y", group_by='ticker', threads=True, progress=False)
-        
-        valid_setups = []
-        
-        for i, ticker in enumerate(target_tickers):
-            # 更新進度
-            progress = (i + 1) / len(target_tickers)
-            progress_bar.progress(progress)
-            status_text.text(f"分析中: {ticker} ...")
-            
+        for i, ticker in enumerate(tickers):
+            progress_bar.progress((i + 1) / len(tickers))
             try:
-                # 處理 yfinance 多股票數據結構
-                if len(target_tickers) > 1:
+                # 處理 yfinance 數據結構
+                if len(tickers) > 1:
                     df = data[ticker].dropna()
                 else:
                     df = data.dropna()
                 
                 if not df.empty:
-                    result = check_jlaw_criteria(ticker, df)
-                    if result:
-                        valid_setups.append(result)
+                    res = analyze_market_structure(ticker, df)
+                    if res:
+                        st.session_state['results'].append(res)
+                        found_count += 1
             except Exception as e:
                 continue
-                
-        progress_bar.empty()
-        status_text.empty()
         
-        # 顯示結果
-        if valid_setups:
-            st.success(f"🎯 掃描完成！發現 {len(valid_setups)} 隻符合 J Law 標準的股票。")
-            
-            # 轉換為 DataFrame 展示
-            df_results = pd.DataFrame(valid_setups)
-            st.dataframe(df_results, use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("📊 戰術圖表檢視")
-            
-            # 讓用戶選擇查看哪一隻
-            selected_stock = st.selectbox("選擇股票查看詳細圖表", df_results['代號'].tolist())
-            
-            if selected_stock:
-                # 獲取該股票數據畫圖
-                if len(target_tickers) > 1:
-                    stock_data = data[selected_stock]
-                else:
-                    stock_data = data
-                
-                # 使用 Plotly 畫交互式 K 線圖
-                fig = go.Figure()
-                
-                # K線
-                fig.add_trace(go.Candlestick(x=stock_data.index,
-                                open=stock_data['Open'],
-                                high=stock_data['High'],
-                                low=stock_data['Low'],
-                                close=stock_data['Close'],
-                                name='Price'))
-                
-                # 均線
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'].rolling(10).mean(), line=dict(color='orange', width=1.5), name='10 MA'))
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'].rolling(20).mean(), line=dict(color='purple', width=1.5), name='20 MA'))
-                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'].rolling(50).mean(), line=dict(color='blue', width=1), name='50 MA'))
+        status.update(label=f"掃描完成！發現 {found_count} 個潛在機會", state="complete", expanded=False)
 
-                fig.update_layout(
-                    title=f"{selected_stock} - J Law 戰術圖表",
-                    yaxis_title="Price",
-                    xaxis_rangeslider_visible=False,
-                    height=600
-                )
-                st.plotly_chart(fig, use_container_width=True)
-                
-                # 顯示 J Law 的操作提示
-                row = df_results[df_results['代號'] == selected_stock].iloc[0]
-                st.info(f"""
-                **💡 J Law 操作提示：**
-                這隻股票目前處於 **{row['策略']}** 狀態。
-                1. **確認**：請等待股價**突破今日高點**才進場 (Confirmation)。
-                2. **止損**：設定在今日低點下方。
-                3. **量能**：今日成交量為均量的 {row['成交量狀態']}，顯示賣壓減輕。
-                """)
-                
-        else:
-            st.warning("⚠️ 掃描完成，但沒有發現符合嚴格標準的股票。這可能代表目前市場處於調整期，不適合積極做多。")
+# 顯示結果
+if st.session_state['results']:
+    results_df = pd.DataFrame(st.session_state['results'])
+    
+    # 佈局：左側列表，右側詳情
+    col1, col2 = st.columns([1, 2])
+    
+    with col1:
+        st.subheader("📋 候選名單")
+        # 簡單表格展示
+        display_df = results_df[['Ticker', 'Strategy', 'Entry']]
+        st.dataframe(display_df, use_container_width=True, hide_index=True)
+        
+        # 選擇股票
+        selected_ticker = st.selectbox("👇 點擊選擇股票查看戰術板：", results_df['Ticker'].tolist())
+    
+    with col2:
+        if selected_ticker:
+            # 獲取選中股票的詳細數據
+            item = next((x for x in st.session_state['results'] if x['Ticker'] == selected_ticker), None)
+            
+            st.subheader(f"🦅 {item['Ticker']} 戰術執行板")
+            st.caption(f"策略模式：{item['Strategy']}")
+            
+            # 關鍵數據 Metics
+            m1, m2, m3 = st.columns(3)
+            m1.metric("🔵 買入觸發 (Entry)", f"${item['Entry']}")
+            m2.metric("🔴 止損防守 (Stop)", f"${item['Stop']}")
+            m3.metric("🟢 獲利目標 (3R)", f"${item['Target']}")
+            
+            st.markdown("### 📝 J Law 戰術分析")
+            st.info(item['Reason'])
+            
+            st.markdown("### 📈 TradingView 圖表確認")
+            # 嵌入 TradingView Widget
+            tv_widget = f"""
+            <div class="tradingview-widget-container">
+              <div id="tradingview_chart"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+              <script type="text/javascript">
+              new TradingView.widget(
+              {{
+                "width": "100%",
+                "height": 500,
+                "symbol": "{item['Ticker']}",
+                "interval": "D",
+                "timezone": "Exchange",
+                "theme": "dark",
+                "style": "1",
+                "locale": "zh_TW",
+                "toolbar_bg": "#f1f3f6",
+                "enable_publishing": false,
+                "hide_side_toolbar": false,
+                "allow_symbol_change": true,
+                "container_id": "tradingview_chart",
+                "studies": [
+                  {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 10 }}, "title": "10 MA" }},
+                  {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 20 }}, "title": "20 MA" }},
+                  {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 50 }}, "title": "50 MA" }},
+                  {{ "id": "MASimple@tv-basicstudies", "inputs": {{ "length": 200 }}, "title": "200 MA" }}
+                ]
+              }}
+              );
+              </script>
+            </div>
+            """
+            components.html(tv_widget, height=500)
 
 else:
-    st.info("👈 請點擊左側「啟動 J Law 戰術掃描」按鈕開始。")
+    if run_btn:
+        st.warning("沒有發現符合條件的股票。市場可能處於調整期，建議空倉觀望。")
+    else:
+        st.info("👈 請在左側點擊「開始掃描」")
