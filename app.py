@@ -5,163 +5,228 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # ==========================================
-# 1. 頁面配置
+# 1. 系統設置
 # ==========================================
-st.set_page_config(page_title="J Law 戰術掃描器", layout="wide", page_icon="⚔️")
+st.set_page_config(page_title="J Law 自動戰術掃描器", layout="wide", page_icon="🦅")
 
-st.title("⚔️ J Law 冠軍操盤室 - 戰術掃描器")
+st.title("🦅 J Law 冠軍操盤室：自動戰術掃描系統")
 st.markdown("""
-**策略核心 (M.E.T.A.)**：
-尋找 **強勁趨勢** 中，回調至 **10MA/20MA** 且 **量縮** 的機會。
-*(贏大輸小，等待多重優勢共振)*
+**系統邏輯**：此程式會自動遍歷股票清單，尋找符合 **M.E.T.A.** 標準的股票。
+1.  **趨勢向上** (Price > 200MA)
+2.  **回測支撐** (Price touching 10MA or 20MA)
+3.  **成交量縮** (Volume < Average Volume)
 """)
 
 # ==========================================
-# 2. 核心分析函數 (J Law Logic)
+# 2. 數據源與股票池
 # ==========================================
-def analyze_jlaw_setup(ticker_symbol):
+def get_nasdaq_100():
+    # 這裡列出部分 Nasdaq 100 及熱門股，為了速度演示，您可以自行增加
+    return [
+        "AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST", 
+        "AMD", "NFLX", "PEP", "CSCO", "TMUS", "QCOM", "TXN", "AMGN", "INTU", 
+        "INTC", "ISRG", "HON", "AMAT", "BKNG", "SBUX", "MDLZ", "ADP", "GILD", 
+        "LRCX", "ADI", "VRTX", "REGN", "PANW", "MU", "SNPS", "KLAC", "CDNS", 
+        "CHTR", "CSX", "MAR", "PYPL", "ASML", "MNST", "ORLY", "ODFL", "LULU", 
+        "MSTR", "COIN", "PLTR", "SOFI", "AFRM", "UPST", "DKNG", "HOOD", "RBLX",
+        "UBER", "ABNB", "DASH", "NET", "DDOG", "ZS", "CRWD", "TTD", "APP"
+    ]
+
+# ==========================================
+# 3. J Law 核心篩選演算法
+# ==========================================
+def check_jlaw_criteria(ticker, df):
     try:
-        # 下載數據 (取過去 1 年數據以計算均線)
-        df = yf.download(ticker_symbol, period="1y", progress=False)
-        
-        if df.empty or len(df) < 200:
+        # 確保數據足夠計算 200MA
+        if len(df) < 200:
             return None
 
-        # 處理數據 (最新的在最後)
-        close = df['Close'].iloc[-1]
-        volume = df['Volume'].iloc[-1]
+        # 取得最新數據
+        current_close = df['Close'].iloc[-1]
+        current_low = df['Low'].iloc[-1]
+        current_volume = df['Volume'].iloc[-1]
         
-        # 計算移動平均線 (MA)
-        ma10 = df['Close'].rolling(window=10).mean().iloc[-1]
-        ma20 = df['Close'].rolling(window=20).mean().iloc[-1]
-        ma50 = df['Close'].rolling(window=50).mean().iloc[-1]
-        ma200 = df['Close'].rolling(window=200).mean().iloc[-1]
+        # 計算均線
+        sma10 = df['Close'].rolling(window=10).mean().iloc[-1]
+        sma20 = df['Close'].rolling(window=20).mean().iloc[-1]
+        sma50 = df['Close'].rolling(window=50).mean().iloc[-1]
+        sma200 = df['Close'].rolling(window=200).mean().iloc[-1]
         
-        # 計算平均成交量 (50日)
+        # 計算 50日平均成交量
         avg_vol_50 = df['Volume'].rolling(window=50).mean().iloc[-1]
-        vol_ratio = volume / avg_vol_50  # 今日量 / 均量
 
-        # --- J Law 篩選邏輯 ---
+        # --- J LAW 判斷邏輯 ---
         
-        # 1. 大趨勢必須向上 (Stage 2)
-        trend_condition = close > ma200 and ma50 > ma200
+        # 條件 1: 大趨勢必須向上 (Stage 2)
+        # 股價 > 200MA 且 50MA > 200MA
+        is_uptrend = current_close > sma200 and sma50 > sma200
         
-        # 2. 強勢特徵 (必須在中短期均線之上或附近)
-        # 我們尋找的是回調 (Pullback)，所以價格要在 MA10 或 MA20 附近
-        dist_to_ma10 = abs(close - ma10) / close
-        dist_to_ma20 = abs(close - ma20) / close
+        if not is_uptrend:
+            return None # 趨勢不對，直接過濾掉
+
+        # 條件 2: 量能枯竭 (Volume Dry Up)
+        # 今日成交量 < 平均成交量的 85% (或者是更嚴格的 75%)
+        # 這代表回調時沒有賣壓
+        is_volume_dry = current_volume < (avg_vol_50 * 0.9) # 稍微放寬到 90% 以便捕捉更多機會
+
+        # 條件 3: 網球行為 (Tennis Ball Action) - 回測支撐
+        # 股價回落到 10MA 或 20MA 附近 (誤差範圍內)
         
-        # 定義 "附近" 為差距 2% 以內，且沒有跌破太多
-        near_support = (dist_to_ma10 < 0.025) or (dist_to_ma20 < 0.025)
+        setup_type = ""
         
-        # 3. 量縮 (Volume Dry Up) - 這是 J Law 強調的重點
-        # 這是回調買點的關鍵，量縮代表賣壓竭盡
-        volume_dry_up = vol_ratio < 0.85  # 今日量小於均量的 85%
+        # 檢查是否回測 10MA (強勢股)
+        # 邏輯：最低價觸及 10MA 附近 (正負 1.5%) 且 收盤價最好在 10MA 之上或附近
+        dist_10 = abs(current_low - sma10) / sma10
+        if dist_10 <= 0.015 and current_close >= (sma10 * 0.99):
+            setup_type = "🔥 10MA 超強勢回調"
         
-        setup_type = None
-        
-        if trend_condition and near_support and volume_dry_up:
-            if close > ma10:
-                setup_type = "🔥 10MA 超強勢整理 (量縮)"
-            elif close > ma20:
-                setup_type = "🟡 20MA 標準回調 (網球行為)"
-                
-        if setup_type:
+        # 檢查是否回測 20MA (標準波段)
+        dist_20 = abs(current_low - sma20) / sma20
+        if not setup_type and dist_20 <= 0.015 and current_close >= (sma20 * 0.99):
+            setup_type = "🟡 20MA 標準回調"
+
+        # 最終判斷
+        if setup_type and is_volume_dry:
             return {
-                "Ticker": ticker_symbol,
-                "Price": close,
-                "Setup": setup_type,
-                "Vol_Ratio": vol_ratio,
-                "MA10": ma10,
-                "MA20": ma20,
-                "MA50": ma50,
-                "DataFrame": df
+                "代號": ticker,
+                "現價": round(current_close, 2),
+                "策略": setup_type,
+                "成交量狀態": f"{int((current_volume/avg_vol_50)*100)}% (量縮)",
+                "MA10": round(sma10, 2),
+                "MA20": round(sma20, 2),
+                "RSI": round(compute_rsi(df), 2)
             }
             
     except Exception as e:
         return None
+    
     return None
 
+def compute_rsi(df, period=14):
+    delta = df['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs)).iloc[-1]
+
 # ==========================================
-# 3. 側邊欄輸入
+# 4. 前端顯示與控制
 # ==========================================
+
+# 側邊欄
 st.sidebar.header("🔍 掃描設定")
-default_tickers = "NVDA, TSLA, AMD, AAPL, MSFT, META, GOOGL, AMZN, NFLX, PLTR, COIN, MSTR, SMCI, ARM"
-user_input = st.sidebar.text_area("輸入股票代碼 (逗號分隔)", default_tickers, height=150)
+scan_list = st.sidebar.radio("選擇掃描範圍", ["Nasdaq 精選 (速度快)", "自定義股票池"])
 
-run_scan = st.sidebar.button("開始掃描 (Find Edge)", type="primary")
+custom_tickers = ""
+if scan_list == "自定義股票池":
+    custom_tickers = st.sidebar.text_area("輸入股票代碼 (逗號分隔)", "PLTR, SOFI, COIN, MARA, RIOT, TSLA")
 
-# ==========================================
-# 4. 主畫面邏輯
-# ==========================================
-if run_scan:
-    tickers = [t.strip().upper() for t in user_input.split(',')]
-    results = []
-    
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    for i, ticker in enumerate(tickers):
-        status_text.text(f"正在分析市場結構: {ticker} ...")
-        progress_bar.progress((i + 1) / len(tickers))
-        
-        res = analyze_jlaw_setup(ticker)
-        if res:
-            results.append(res)
-            
-    progress_bar.empty()
-    status_text.empty()
-    
-    if not results:
-        st.warning("⚠️ 目前沒有發現符合 J Law 嚴格標準 (趨勢+回調+量縮) 的股票。")
+start_btn = st.sidebar.button("🚀 啟動 J Law 戰術掃描", type="primary")
+
+# 主畫面
+if start_btn:
+    # 決定要掃描的列表
+    target_tickers = []
+    if scan_list == "Nasdaq 精選 (速度快)":
+        target_tickers = get_nasdaq_100()
     else:
-        st.success(f"✅ 發現 {len(results)} 個潛在 M.E.T.A. 機會！")
+        target_tickers = [x.strip().upper() for x in custom_tickers.split(',')]
+    
+    if not target_tickers:
+        st.error("股票列表為空！")
+    else:
+        st.write(f"正在掃描 {len(target_tickers)} 隻股票，請稍候...")
         
-        for item in results:
-            with st.expander(f"{item['Ticker']} - {item['Setup']}", expanded=True):
-                col1, col2 = st.columns([1, 3])
+        # 進度條
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # 批量下載數據 (大幅提升速度)
+        # 使用 threads 加速
+        data = yf.download(target_tickers, period="1y", group_by='ticker', threads=True, progress=False)
+        
+        valid_setups = []
+        
+        for i, ticker in enumerate(target_tickers):
+            # 更新進度
+            progress = (i + 1) / len(target_tickers)
+            progress_bar.progress(progress)
+            status_text.text(f"分析中: {ticker} ...")
+            
+            try:
+                # 處理 yfinance 多股票數據結構
+                if len(target_tickers) > 1:
+                    df = data[ticker].dropna()
+                else:
+                    df = data.dropna()
                 
-                with col1:
-                    st.metric("現價", f"${item['Price']:.2f}")
-                    st.metric("成交量比 (1.0=均量)", f"{item['Vol_Ratio']:.2f}", delta="量縮" if item['Vol_Ratio'] < 1 else "放量", delta_color="inverse")
-                    st.markdown("---")
-                    st.write("**關鍵價位:**")
-                    st.write(f"10 MA: ${item['MA10']:.2f}")
-                    st.write(f"20 MA: ${item['MA20']:.2f}")
-                    st.caption("策略：等待突破今日高點進場，止損設在今日低點下方。")
+                if not df.empty:
+                    result = check_jlaw_criteria(ticker, df)
+                    if result:
+                        valid_setups.append(result)
+            except Exception as e:
+                continue
+                
+        progress_bar.empty()
+        status_text.empty()
+        
+        # 顯示結果
+        if valid_setups:
+            st.success(f"🎯 掃描完成！發現 {len(valid_setups)} 隻符合 J Law 標準的股票。")
+            
+            # 轉換為 DataFrame 展示
+            df_results = pd.DataFrame(valid_setups)
+            st.dataframe(df_results, use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("📊 戰術圖表檢視")
+            
+            # 讓用戶選擇查看哪一隻
+            selected_stock = st.selectbox("選擇股票查看詳細圖表", df_results['代號'].tolist())
+            
+            if selected_stock:
+                # 獲取該股票數據畫圖
+                if len(target_tickers) > 1:
+                    stock_data = data[selected_stock]
+                else:
+                    stock_data = data
+                
+                # 使用 Plotly 畫交互式 K 線圖
+                fig = go.Figure()
+                
+                # K線
+                fig.add_trace(go.Candlestick(x=stock_data.index,
+                                open=stock_data['Open'],
+                                high=stock_data['High'],
+                                low=stock_data['Low'],
+                                close=stock_data['Close'],
+                                name='Price'))
+                
+                # 均線
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'].rolling(10).mean(), line=dict(color='orange', width=1.5), name='10 MA'))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'].rolling(20).mean(), line=dict(color='purple', width=1.5), name='20 MA'))
+                fig.add_trace(go.Scatter(x=stock_data.index, y=stock_data['Close'].rolling(50).mean(), line=dict(color='blue', width=1), name='50 MA'))
 
-                with col2:
-                    # 繪製 K 線圖
-                    df_chart = item['DataFrame'].tail(100) # 只看最近 100 天
-                    
-                    fig = go.Figure(data=[go.Candlestick(x=df_chart.index,
-                                    open=df_chart['Open'],
-                                    high=df_chart['High'],
-                                    low=df_chart['Low'],
-                                    close=df_chart['Close'],
-                                    name='Price')])
-                    
-                    # 疊加均線
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['Close'].rolling(10).mean(), line=dict(color='orange', width=1.5), name='10 MA'))
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['Close'].rolling(20).mean(), line=dict(color='purple', width=1.5), name='20 MA'))
-                    fig.add_trace(go.Scatter(x=df_chart.index, y=df_chart['Close'].rolling(50).mean(), line=dict(color='blue', width=1), name='50 MA'))
+                fig.update_layout(
+                    title=f"{selected_stock} - J Law 戰術圖表",
+                    yaxis_title="Price",
+                    xaxis_rangeslider_visible=False,
+                    height=600
+                )
+                st.plotly_chart(fig, use_container_width=True)
+                
+                # 顯示 J Law 的操作提示
+                row = df_results[df_results['代號'] == selected_stock].iloc[0]
+                st.info(f"""
+                **💡 J Law 操作提示：**
+                這隻股票目前處於 **{row['策略']}** 狀態。
+                1. **確認**：請等待股價**突破今日高點**才進場 (Confirmation)。
+                2. **止損**：設定在今日低點下方。
+                3. **量能**：今日成交量為均量的 {row['成交量狀態']}，顯示賣壓減輕。
+                """)
+                
+        else:
+            st.warning("⚠️ 掃描完成，但沒有發現符合嚴格標準的股票。這可能代表目前市場處於調整期，不適合積極做多。")
 
-                    fig.update_layout(xaxis_rangeslider_visible=False, height=400, margin=dict(l=0, r=0, t=0, b=0))
-                    st.plotly_chart(fig, use_container_width=True)
-
-# ==========================================
-# 5. 教學區 (J Law 筆記)
-# ==========================================
-with st.expander("📚 J Law 投資重點筆記 (Cheatsheet)"):
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("### 1. 什麼是 M.E.T.A.?")
-        st.write("Multiple Edge Trading Area (多重優勢交易區間)。我們不單靠一條線交易，我們要靠多個理由重疊在同一個位置。")
-        st.write("- **趨勢**: 向上")
-        st.write("- **位置**: 支持位/均線")
-        st.write("- **動能**: 量縮回調")
-    with c2:
-        st.markdown("### 2. 交易執行")
-        st.write("- **進場**: 不要掛單在支撐接刀！要等待價格**突破前一日高點**才進場 (這叫 Follow Through)。")
-        st.write("- **止損**: 跌破支撐區間/K線低點就走，不要留戀。")
-        st.write("- **目標**: 賺賠比至少 3:1。")
+else:
+    st.info("👈 請點擊左側「啟動 J Law 戰術掃描」按鈕開始。")
