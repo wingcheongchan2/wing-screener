@@ -1,4 +1,4 @@
 streamlit
-pandas
 yfinance
-tradingview-ta
+pandas
+numpy
