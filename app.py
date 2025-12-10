@@ -2,305 +2,223 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import plotly.graph_objects as go
-from datetime import datetime
+import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 專業級 UI 設定 (Bloomberg 風格)
+# 1. 系統設置 (J Law 戰情室風格)
 # ==========================================
-st.set_page_config(page_title="J Law Alpha Trader", layout="wide", page_icon="🦅")
+st.set_page_config(page_title="J Law Auto Screener", layout="wide", page_icon="🦅")
 
-# 黑金戰情室風格 CSS
 st.markdown("""
 <style>
-    /* 全局背景 */
-    .stApp { background-color: #000000; color: #e0e0e0; }
-    
-    /* 側邊欄 */
-    section[data-testid="stSidebar"] { background-color: #111111; }
-    
-    /* 按鈕特效 */
+    .stApp { background-color: #0E1117; color: #E0E0E0; }
+    /* 按鈕優化 */
     div.stButton > button:first-child {
-        background: linear-gradient(90deg, #00C853 0%, #009624 100%);
-        color: white; border: none; font-weight: bold; padding: 10px; font-size: 16px;
+        background-color: #2962FF; color: white; border: none; 
+        font-weight: bold; padding: 12px; font-size: 16px; border-radius: 8px;
     }
     div.stButton > button:first-child:hover {
-        background: linear-gradient(90deg, #00E676 0%, #00C853 100%);
-        box-shadow: 0 0 15px rgba(0, 200, 83, 0.6);
+        background-color: #0039CB;
     }
-
-    /* 評分卡片 */
-    .score-card {
-        background-color: #1a1a1a; border: 1px solid #333; border-radius: 10px;
-        padding: 20px; text-align: center; margin-bottom: 20px;
+    /* 數據卡片 */
+    .metric-card {
+        background-color: #1e1e1e; padding: 15px; border-radius: 8px;
+        border-left: 5px solid #2962FF; text-align: center; margin-bottom: 10px;
     }
-    .score-val { font-size: 36px; font-weight: 900; }
-    .score-high { color: #00E676; text-shadow: 0 0 10px rgba(0,230,118,0.5); }
-    .score-med { color: #FFD600; }
-    .score-low { color: #FF1744; }
-    
-    /* 交易計劃框 */
-    .plan-box {
-        background-color: #0d1117; border-left: 5px solid #00E676;
-        padding: 15px; margin: 10px 0; border-radius: 5px;
-    }
-    .plan-label { font-size: 12px; color: #888; text-transform: uppercase; }
-    .plan-price { font-size: 20px; font-weight: bold; color: #fff; }
+    .metric-val { font-size: 24px; font-weight: bold; color: #fff; }
+    .metric-lbl { font-size: 12px; color: #aaa; text-transform: uppercase; }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦅 J Law 冠軍操盤室：自動獲利系統")
-st.markdown("---")
+st.title("🦅 J Law 自動股票搜尋器 (TradingView 版)")
 
 # ==========================================
-# 2. 自動化掃描核心 (核心大腦)
+# 2. 自動搜尋核心 (AI 掃描)
 # ==========================================
-
 @st.cache_data
-def get_target_pool():
-    # J Law 精選流動性高、波動大的優質股 (High Beta)
+def get_tickers():
+    # 這裡放 J Law 關注的強勢動能股 (60+ 檔)
     return [
         "NVDA", "TSLA", "AMD", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "NFLX",
         "COIN", "MSTR", "MARA", "RIOT", "HOOD", "PLTR", "SOFI", "UPST", "AFRM",
         "SMCI", "ARM", "AVGO", "MU", "QCOM", "TSM", "MRVL", "LRCX", "AMAT",
         "CRWD", "PANW", "SNPS", "NOW", "UBER", "DASH", "ABNB", "SQ", "PYPL",
-        "JPM", "GS", "V", "MA", "CAT", "DE", "BA", "LULU", "CELH"
+        "JPM", "GS", "V", "MA", "CAT", "DE", "BA", "LULU", "CELH", "DKNG",
+        "SHOP", "NET", "DDOG", "TTD", "APP", "CVNA", "RIVN", "ON"
     ]
 
-def analyze_stock_pro(ticker, df):
+def scan_market(ticker, df):
     """
-    J Law 核心演算法：計算分數並生成交易計劃
+    J Law 核心演算法：找出 Setup
     """
     try:
         if len(df) < 200: return None
         
-        # 提取數據
         curr = df.iloc[-1]
         close = curr['Close']
-        high = curr['High']
-        low = curr['Low']
         vol = curr['Volume']
         
-        # 技術指標計算
-        ma10 = df['Close'].rolling(10).mean().iloc[-1]
+        # 均線計算
         ma20 = df['Close'].rolling(20).mean().iloc[-1]
         ma50 = df['Close'].rolling(50).mean().iloc[-1]
         ma200 = df['Close'].rolling(200).mean().iloc[-1]
         avg_vol = df['Volume'].rolling(50).mean().iloc[-1]
-        atr = (df['High'] - df['Low']).rolling(14).mean().iloc[-1]
         
-        # --- 1. 評分系統 (0-100分) ---
-        score = 0
-        reasons = []
-        
-        # A. 趨勢 (Trend) - 佔 40分
-        if close > ma200:
-            score += 20
-            reasons.append("✅ 長期趨勢向上 (Stage 2)")
-            if close > ma50:
-                score += 20
-                reasons.append("✅ 中期動能強勁")
-        else:
-            return None # 200MA 以下直接淘汰 (不浪費時間)
+        # 1. 趨勢濾網：只做多頭 (200MA 之上)
+        if close < ma200: return None
 
-        # B. 位置 (Location) - 佔 40分
-        # 尋找 "Tennis Ball Action" (回測 20MA)
+        # 2. 網球行為：回測 20MA 或 50MA
         dist_20 = (close - ma20) / ma20
-        dist_10 = (close - ma10) / ma10
+        dist_50 = (close - ma50) / ma50
         
-        if -0.02 <= dist_20 <= 0.03: # 在 20MA 附近 (誤差3%)
-            score += 40
-            reasons.append("🎯 完美回測 20MA (網球行為)")
-        elif -0.02 <= dist_10 <= 0.02: # 在 10MA 附近 (超強勢)
-            score += 35
-            reasons.append("🔥 回測 10MA (超強勢整理)")
-        elif 0.03 < dist_20 < 0.08:
-            score += 15
-            reasons.append("⚠️ 略微偏離 (等待回調)")
+        setup_type = ""
+        score = 0
+        
+        # 判定 Setup
+        if abs(dist_20) <= 0.035: # 距離 20MA 3.5% 以內
+            setup_type = "Tennis Ball (20MA)"
+            score = 90
+        elif abs(dist_50) <= 0.035: # 距離 50MA 3.5% 以內
+            setup_type = "Defense Line (50MA)"
+            score = 80
         else:
-            reasons.append("❌ 乖離過大 (勿追高)")
-            
-        # C. 量能 (Volume) - 佔 20分
+            return None # 沒踩到線，跳過
+
+        # 3. 量能分析
         vol_ratio = vol / avg_vol
-        if vol_ratio < 0.8:
-            score += 20
-            reasons.append("💧 極致縮量 (無賣壓)")
-        elif vol_ratio < 1.2:
-            score += 10
-            reasons.append("👌 量能正常")
-        else:
-            reasons.append("🔊 爆量 (需小心出貨)")
-            
-        # --- 2. 交易計劃生成 (The Money Maker) ---
-        # 進場：突破今日高點 + 0.1 ATR (確認訊號)
-        entry_price = high + (atr * 0.05)
-        # 止蝕：跌破今日低點 - 0.1 ATR
-        stop_loss = low - (atr * 0.05)
+        if vol_ratio > 1.5: return None # 爆量下跌不接
         
-        # 若止損太窄，使用 20MA 作為防守
-        if entry_price - stop_loss < (close * 0.015):
-             stop_loss = min(stop_loss, ma20 * 0.99)
-             
-        risk = entry_price - stop_loss
-        target_2r = entry_price + (risk * 2)
-        target_3r = entry_price + (risk * 3)
+        # 4. 交易計劃
+        atr = (df['High'] - df['Low']).rolling(14).mean().iloc[-1]
+        entry = curr['High'] + (atr * 0.1) # 突破高點買進
+        stop = curr['Low'] - (atr * 0.1)   # 跌破低點止損
+        
+        if entry <= stop: return None
         
         return {
             "Symbol": ticker,
-            "Score": score,
-            "Price": close,
-            "Entry": round(entry_price, 2),
-            "Stop": round(stop_loss, 2),
-            "Risk": round(risk, 2),
-            "Target_2R": round(target_2r, 2),
-            "Target_3R": round(target_3r, 2),
-            "Reasons": reasons,
+            "Setup": setup_type,
+            "Price": round(close, 2),
+            "Entry": round(entry, 2),
+            "Stop": round(stop, 2),
             "Vol_Ratio": round(vol_ratio, 2),
-            "MA20": round(ma20, 2)
+            "Score": score
         }
     except:
         return None
 
 # ==========================================
-# 3. 側邊欄：資金與操作
+# 3. 介面控制
 # ==========================================
 with st.sidebar:
-    st.header("💰 資金控管中心")
-    account_size = st.number_input("總資金 (USD)", value=10000, step=1000)
-    risk_pct = st.slider("單筆風險 (%)", 0.5, 3.0, 1.0)
+    st.header("🔍 自動掃描設定")
+    st.info("系統將掃描 60+ 檔熱門美股，找出符合 J Law 技術分析 (均線回測+縮量) 的股票。")
+    run_btn = st.button("🚀 開始自動搜尋 (Auto Search)", type="primary")
+
+# 初始化
+if 'results' not in st.session_state:
+    st.session_state['results'] = None
+
+# 執行掃描邏輯
+if run_btn:
+    tickers = get_tickers()
+    status = st.empty()
+    status.write("⏳ 正在連線市場數據，AI 分析中...")
+    bar = st.progress(0)
     
-    max_loss = account_size * (risk_pct / 100)
-    st.info(f"🛡️ 單筆最大虧損限制： **${max_loss:.0f}**")
-    
-    st.markdown("---")
-    st.header("🚀 掃描控制")
-    run_scan = st.button("開始自動掃描", use_container_width=True)
-    st.caption("掃描美股 Top 60 流動性最佳標的")
-
-# ==========================================
-# 4. 主程序與顯示邏輯
-# ==========================================
-
-# 初始化 Session
-if 'scan_results' not in st.session_state:
-    st.session_state['scan_results'] = None
-
-if run_scan:
-    tickers = get_target_pool()
     data = yf.download(tickers, period="1y", group_by='ticker', threads=True, progress=False)
     
-    results = []
-    progress_bar = st.progress(0)
-    status_text = st.empty()
+    valid_stocks = []
     
     for i, t in enumerate(tickers):
-        progress_bar.progress((i+1)/len(tickers))
-        status_text.text(f"正在分析: {t} ...")
-        
+        bar.progress((i+1)/len(tickers))
         try:
             if len(tickers) == 1: df = data
-            else: 
+            else:
                 if t not in data.columns.levels[0]: continue
                 df = data[t].dropna()
             
-            res = analyze_stock_pro(t, df)
-            if res and res['Score'] >= 60: # 只顯示 60 分以上的
-                results.append(res)
+            res = scan_market(t, df)
+            if res: valid_stocks.append(res)
         except: continue
         
-    progress_bar.empty()
-    status_text.empty()
+    bar.empty()
+    status.empty()
     
-    if results:
-        # 依分數排序
-        df_res = pd.DataFrame(results).sort_values(by='Score', ascending=False)
-        st.session_state['scan_results'] = df_res
-        st.success(f"✅ 掃描完成！發現 {len(results)} 個潛在獲利機會。")
+    if valid_stocks:
+        # 按分數排序
+        st.session_state['results'] = pd.DataFrame(valid_stocks).sort_values('Score', ascending=False)
+        st.success(f"✅ 搜尋完成！找到 {len(valid_stocks)} 檔潛在獲利機會。")
     else:
-        st.warning("⚠️ 市場目前狀況不佳，沒有發現高分 Setup，建議空手觀望。")
+        st.warning("⚠️ 目前市場沒有符合標準的機會 (空手也是一種策略)。")
 
-# --- 顯示結果 ---
-if st.session_state['scan_results'] is not None:
-    df = st.session_state['scan_results']
+# ==========================================
+# 4. 顯示結果 (TradingView 整合)
+# ==========================================
+if st.session_state['results'] is not None:
+    df = st.session_state['results']
     
-    # 使用 Tabs 分頁
-    tab1, tab2 = st.tabs(["🏆 冠軍精選 (Top Picks)", "📋 完整清單"])
+    # 左側列表，右側圖表
+    col_list, col_chart = st.columns([1, 2])
     
-    with tab1:
-        # 顯示前 3 名
-        top_picks = df.head(5)
+    with col_list:
+        st.subheader("📋 機會清單")
+        # 讓使用者點選股票
+        selected_ticker = st.radio(
+            "點擊查看圖表：",
+            df['Symbol'].tolist(),
+            format_func=lambda x: f"{x} - {df[df['Symbol']==x]['Setup'].values[0]}"
+        )
         
-        for index, row in top_picks.iterrows():
-            # 計算股數
-            shares = int(max_loss / row['Risk']) if row['Risk'] > 0 else 0
-            position_size = shares * row['Entry']
+        # 顯示選中股票的數據
+        if selected_ticker:
+            row = df[df['Symbol'] == selected_ticker].iloc[0]
+            st.markdown("---")
+            st.markdown(f"### 📊 {row['Symbol']} 交易計劃")
+            st.markdown(f"**策略：** `{row['Setup']}`")
             
-            # 卡片容器
-            with st.container():
-                # 標題列
-                c1, c2, c3 = st.columns([1, 1, 2])
-                with c1:
-                    st.markdown(f"## {row['Symbol']}")
-                with c2:
-                    score_color = "score-high" if row['Score'] >= 80 else "score-med"
-                    st.markdown(f"<div class='score-val {score_color}'>{row['Score']}分</div>", unsafe_allow_html=True)
-                with c3:
-                    st.markdown("**分析理由：**")
-                    for r in row['Reasons']:
-                        st.markdown(f"- {r}")
-                
-                st.markdown("---")
-                
-                # 交易計劃核心區 (Money Zone)
-                k1, k2, k3, k4 = st.columns(4)
-                with k1:
-                    st.markdown('<div class="plan-box"><div class="plan-label">🔵 進場價 (Buy Stop)</div><div class="plan-price">${}</div></div>'.format(row['Entry']), unsafe_allow_html=True)
-                with k2:
-                    st.markdown('<div class="plan-box"><div class="plan-label">🔴 止蝕價 (Stop Loss)</div><div class="plan-price" style="color:#FF1744">${}</div></div>'.format(row['Stop']), unsafe_allow_html=True)
-                with k3:
-                    st.markdown('<div class="plan-box"><div class="plan-label">🎯 第一目標 (2R)</div><div class="plan-price" style="color:#00E676">${}</div></div>'.format(row['Target_2R']), unsafe_allow_html=True)
-                with k4:
-                    st.markdown(f'<div class="plan-box"><div class="plan-label">💰 建議股數</div><div class="plan-price" style="color:#FFD600">{shares} 股</div></div>', unsafe_allow_html=True)
-                
-                st.caption(f"⚠️ 此筆交易預計風險: ${max_loss:.0f} (佔總資金 {risk_pct}%) | 倉位總值: ${position_size:.0f}")
+            st.markdown(f'<div class="metric-card"><div class="metric-lbl">🔵 買入觸發價 (Entry)</div><div class="metric-val">${row["Entry"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-lbl">🔴 止損防守價 (Stop)</div><div class="metric-val" style="color:#ff4b4b">${row["Stop"]}</div></div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="metric-card"><div class="metric-lbl">量能狀態</div><div class="metric-val">{row["Vol_Ratio"]}x</div></div>', unsafe_allow_html=True)
 
-                # 嵌入 TradingView 圖表
-                st.components.v1.html(f"""
-                <div class="tradingview-widget-container">
-                  <div id="tv_{row['Symbol']}"></div>
-                  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                  <script type="text/javascript">
-                  new TradingView.widget(
-                  {{
-                    "width": "100%", "height": 400, "symbol": "{row['Symbol']}",
-                    "interval": "D", "timezone": "Exchange", "theme": "dark",
-                    "style": "1", "locale": "zh_TW", "toolbar_bg": "#f1f3f6",
-                    "enable_publishing": false, "hide_side_toolbar": false,
-                    "allow_symbol_change": true, "container_id": "tv_{row['Symbol']}",
-                    "studies": ["MASimple@tv-basicstudies"]
-                  }});
-                  </script>
-                </div>
-                """, height=410)
-                
-                st.divider()
-
-    with tab2:
-        st.dataframe(df[['Symbol', 'Score', 'Price', 'Entry', 'Stop', 'Risk', 'Target_3R', 'Vol_Ratio']], use_container_width=True)
+    with col_chart:
+        if selected_ticker:
+            st.subheader(f"📈 {selected_ticker} TradingView 分析")
+            
+            # 這是最完整的 TradingView Widget 代碼
+            # 它會自動帶入上面搜尋到的 selected_ticker
+            tv_html = f"""
+            <div class="tradingview-widget-container" style="height:600px;width:100%">
+              <div id="tradingview_widget" style="height:calc(100% - 32px);width:100%"></div>
+              <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+              <script type="text/javascript">
+              new TradingView.widget(
+              {{
+                "autosize": true,
+                "symbol": "{selected_ticker}",
+                "interval": "D",
+                "timezone": "Exchange",
+                "theme": "dark",
+                "style": "1",
+                "locale": "zh_TW",
+                "enable_publishing": false,
+                "hide_side_toolbar": false,
+                "allow_symbol_change": true,
+                "container_id": "tradingview_widget",
+                "studies": [
+                  "MASimple@tv-basicstudies", 
+                  "MASimple@tv-basicstudies"
+                ],
+                "studies_overrides": {{
+                    "MASimple@tv-basicstudies.length": 20,
+                    "MASimple@tv-basicstudies.length": 200
+                }}
+              }}
+              );
+              </script>
+            </div>
+            """
+            components.html(tv_html, height=600)
 
 else:
-    # 歡迎畫面
-    st.info("👈 請在左側設定你的資金，然後點擊「開始自動掃描」。")
-    
-    st.markdown("""
-    ### 🦅 J Law 獲利法則 (系統邏輯)
-    1.  **Trend is King**: 系統只會搜尋 **200MA** 之上的股票。
-    2.  **Buy the Pullback**: 尋找回測 **20MA (網球行為)** 的機會。
-    3.  **Risk First**: 先算會賠多少，再算會賺多少。
-    
-    **如何使用本系統賺錢：**
-    1.  點擊掃描。
-    2.  專注於 **80分以上 (綠色分數)** 的股票。
-    3.  在券商設定 **Buy Stop (觸價單)** = 系統顯示的進場價。
-    4.  **不到價不進場**，嚴格執行系統給出的股數。
-    """)
+    st.info("👈 請點擊左側按鈕開始搜尋股票。")
