@@ -224,4 +224,46 @@ def display_analysis(row):
     # 戰術儀表板
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(f'<div class="stat-box"><div class="stat-label">CURRENT PRICE</div><div class="stat-val">${row["Close"]:.2f}</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="stat-box" style="border-top:3px solid #00E676"><div class="stat-label">BUY TRIGGER</div><div class="stat-val" s
+    c2.markdown(f'<div class="stat-box" style="border-top:3px solid #00E676"><div class="stat-label">BUY TRIGGER</div><div class="stat-val" style="color:#00E676">${row["Entry"]:.2f}</div></div>', unsafe_allow_html=True)
+    c3.markdown(f'<div class="stat-box" style="border-top:3px solid #FF1744"><div class="stat-label">STOP LOSS</div><div class="stat-val" style="color:#FF1744">${row["Stop"]:.2f}</div></div>', unsafe_allow_html=True)
+    c4.markdown(f'<div class="stat-box"><div class="stat-label">RISK %</div><div class="stat-val">{row["RiskPct"]:.2f}%</div></div>', unsafe_allow_html=True)
+    
+    st.write("")
+    
+    # 深度分析報告
+    st.markdown(f"""
+    <div class="analysis-panel">
+        <h4 style="color:#fff; margin-top:0;">🦅 J LAW TACTICAL REPORT</h4>
+        <div style="color:#ccc; font-size:15px; white-space: pre-line;">
+        {row['Report']}
+        </div>
+        <br>
+        <div style="border-top:1px solid #333; padding-top:10px; font-size:13px; color:#888;">
+            <b>🎯 EXECUTION:</b> Place a <u>Stop Limit Buy Order</u> at <b>${row['Entry']:.2f}</b>. <br>Target Profit: <b>${row['Target']:.2f} (3R)</b>.
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # TradingView 圖表
+    tv_html = f"""
+    <div class="tradingview-widget-container" style="height:600px;width:100%">
+      <div id="tv_{row['Symbol']}" style="height:100%"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+      <script type="text/javascript">
+      new TradingView.widget({{
+        "autosize": true, "symbol": "{row['Symbol']}", "interval": "D", "timezone": "Exchange", "theme": "dark", "style": "1",
+        "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "hide_side_toolbar": false, "allow_symbol_change": true,
+        "container_id": "tv_{row['Symbol']}",
+        "studies": ["MASimple@tv-basicstudies","MASimple@tv-basicstudies","MASimple@tv-basicstudies"],
+        "studies_overrides": {{ "MASimple@tv-basicstudies.length": 10, "MASimple@tv-basicstudies.length": 20, "MASimple@tv-basicstudies.length": 50 }}
+      }});
+      </script>
+    </div>
+    """
+    components.html(tv_html, height=610)
+
+# ==========================================
+# 5. 主程式
+# ==========================================
+if 'scan_data' not in st.session_state: st.session_state['scan_data'] = None
+if 'watchlist' not in st.session_state: st.session_s
