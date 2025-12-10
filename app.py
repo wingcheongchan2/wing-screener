@@ -6,35 +6,24 @@ import requests
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 系統視覺核心 (Safe CSS & Background Logic)
+# 1. 系統視覺核心 (統一紅黑背景)
 # ==========================================
 st.set_page_config(page_title="J Law Alpha Station", layout="wide", page_icon="🦅")
 
-# 1. 主畫面背景：型格暗黑數據流
-MAIN_BG_URL = "https://images.unsplash.com/photo-1639322537228-f710d846310a?q=80&w=2070&auto=format&fit=crop"
+# 統一背景：高清紅色 Tesla Logo (無水印版)
+GLOBAL_BG_URL = "https://images.hdqwalls.com/wallpapers/tesla-logo-red-4k-yu.jpg"
 
-# 2. TSLA 專屬背景：黑色底 + 紅色 Logo
-TSLA_BG_URL = "https://c4.wallpaperflare.com/wallpaper/478/486/477/tesla-motors-logo-tesla-red-background-wallpaper-preview.jpg"
+def inject_css():
+    # 統一使用深色遮罩，確保文字在紅色 Logo 上清晰可見
+    overlay = "rgba(0,0,0,0.85), rgba(0,0,0,0.95)"
 
-def inject_css(current_mode):
-    # 決定背景圖
-    if current_mode == "⚡ TSLA 戰情室 (Intel)":
-        target_bg = TSLA_BG_URL
-        # 紅色 Logo 背景不需要太深遮罩
-        overlay = "rgba(0,0,0,0.7), rgba(0,0,0,0.9)" 
-    else:
-        target_bg = MAIN_BG_URL
-        # 主背景需要深色遮罩
-        overlay = "rgba(0,0,0,0.85), rgba(0,0,0,0.95)"
-
-    # CSS 樣式表 (純文字拼接，防止語法錯誤)
     style_code = f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
-        /* 全局背景 */
+        /* 全局背景設定 (應用於所有頁面) */
         .stApp {{
-            background-image: linear-gradient({overlay}), url("{target_bg}");
+            background-image: linear-gradient({overlay}), url("{GLOBAL_BG_URL}");
             background-size: cover;
             background-attachment: fixed;
             background-position: center;
@@ -49,7 +38,7 @@ def inject_css(current_mode):
             backdrop-filter: blur(10px);
         }}
         
-        /* 股票列表：數據磁貼風格 */
+        /* 隱藏原生 Radio 按鈕 */
         div[role="radiogroup"] > label > div:first-child {{ display: none !important; }}
         div[role="radiogroup"] {{ gap: 5px; }}
         
@@ -66,21 +55,22 @@ def inject_css(current_mode):
         }}
         
         div[role="radiogroup"] > label:hover {{
-            border-color: #00E676;
+            border-color: #E53935; /* 改為紅色光 */
             color: #fff;
-            background: rgba(0, 230, 118, 0.05);
+            background: rgba(229, 57, 53, 0.1);
             transform: translateX(3px);
         }}
         
+        /* 選中狀態：紅色主題 */
         div[role="radiogroup"] > label[data-checked="true"] {{
             background: #000 !important;
-            border: 1px solid #00E676;
-            box-shadow: 0 0 10px rgba(0, 230, 118, 0.2);
-            color: #00E676 !important;
+            border: 1px solid #E53935;
+            box-shadow: 0 0 10px rgba(229, 57, 53, 0.3);
+            color: #E53935 !important;
             font-weight: 700;
         }}
 
-        /* 數據卡片 */
+        /* 數據儀表板 */
         .stat-card {{
             background: rgba(20,20,20,0.8);
             border: 1px solid #333;
@@ -91,11 +81,11 @@ def inject_css(current_mode):
         .stat-label {{ font-size: 12px; color: #888; letter-spacing: 1px; }}
         .stat-value {{ font-size: 24px; font-weight: 700; color: #fff; margin-top: 5px; font-family: 'JetBrains Mono'; }}
 
-        /* 報告面板 */
+        /* J Law 報告面板 */
         .report-panel {{
             background: rgba(10, 10, 10, 0.9);
             border: 1px solid #333;
-            border-left: 4px solid #00E676;
+            border-left: 4px solid #E53935; /* 改為紅色邊 */
             padding: 25px;
             border-radius: 4px;
             font-family: 'Noto Sans TC', sans-serif;
@@ -103,21 +93,21 @@ def inject_css(current_mode):
             font-size: 15px;
             margin-bottom: 20px;
         }}
-        .report-hl {{ color: #00E676; font-weight: bold; }}
+        .report-hl {{ color: #E53935; font-weight: bold; }} /* 重點色改紅 */
         .report-risk {{ color: #FF1744; font-weight: bold; }}
         
-        /* 按鈕 */
+        /* 按鈕優化 */
         div.stButton > button {{
             background: transparent;
-            border: 1px solid #00E676;
-            color: #00E676;
+            border: 1px solid #E53935;
+            color: #E53935;
             border-radius: 4px;
             font-family: 'Noto Sans TC';
             font-weight: bold;
         }}
         div.stButton > button:hover {{
-            background: rgba(0, 230, 118, 0.1);
-            box-shadow: 0 0 15px rgba(0, 230, 118, 0.3);
+            background: rgba(229, 57, 53, 0.1);
+            box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
         }}
         
         h1, h2, h3 {{ color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }}
@@ -139,21 +129,20 @@ def get_market_universe():
     ]
 
 # ==========================================
-# 3. J Law 核心大腦 (數據安全版)
+# 3. J Law 核心大腦
 # ==========================================
 def analyze_stock_pro(ticker, df):
     try:
         if len(df) < 200: return None
         curr = df.iloc[-1]
         
-        # 安全獲取數值 (防止 Series 錯誤)
+        # 安全獲取數值
         try:
             close = float(curr['Close'])
             high = float(curr['High'])
             low = float(curr['Low'])
             vol = float(curr['Volume'])
         except:
-            # 如果是 Series，取第一個值
             close = float(curr['Close'].iloc[0]) if hasattr(curr['Close'], 'iloc') else float(curr['Close'])
             high = float(curr['High'].iloc[0]) if hasattr(curr['High'], 'iloc') else float(curr['High'])
             low = float(curr['Low'].iloc[0]) if hasattr(curr['Low'], 'iloc') else float(curr['Low'])
@@ -168,7 +157,6 @@ def analyze_stock_pro(ticker, df):
         atr = (df['High'] - df['Low']).rolling(14).mean().iloc[-1]
         avg_vol = df['Volume'].rolling(50).mean().iloc[-1]
         
-        # 避免除以零
         if avg_vol == 0: vol_ratio = 1.0
         else: vol_ratio = vol / avg_vol
         
@@ -180,7 +168,7 @@ def analyze_stock_pro(ticker, df):
         analysis_lines = []
         
         # --- 型態識別 ---
-        # A. Tennis Ball (20MA)
+        # A. Tennis Ball
         dist_20 = (low - ma20) / ma20
         if abs(dist_20) <= 0.035 and close > ma20:
             pattern = "🎾 Tennis Ball (網球行為)"
@@ -188,7 +176,7 @@ def analyze_stock_pro(ticker, df):
             analysis_lines.append(f"📈 **趨勢解讀**：股價長期趨勢向上，目前有序回測 20日均線 (${ma20:.2f})。")
             analysis_lines.append(f"✅ **型態確認**：股價觸及均線後有支撐，如同網球落地反彈，機構仍在控盤。")
 
-        # B. Power Trend (10MA)
+        # B. Power Trend
         elif abs((low - ma10)/ma10) <= 0.025 and close > ma10:
             pattern = "🔥 Power Trend (強力趨勢)"
             score = 95
@@ -245,21 +233,21 @@ def display_dashboard(row):
     st.markdown(f"""
     <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid #333; padding-bottom:15px; margin-bottom:20px;">
         <div>
-            <span style="color:#00E676; font-size:14px; font-weight:bold;">STOCK TICKER</span><br>
+            <span style="color:#E53935; font-size:14px; font-weight:bold;">STOCK TICKER</span><br>
             <span style="font-size:48px; font-weight:900; letter-spacing:-1px; color:#fff;">{row['Symbol']}</span>
-            <span style="background:rgba(0, 230, 118, 0.1); color:#00E676; border:1px solid #00E676; padding:2px 8px; font-size:12px; margin-left:10px;">{row['Pattern']}</span>
+            <span style="background:rgba(229, 57, 53, 0.1); color:#E53935; border:1px solid #E53935; padding:2px 8px; font-size:12px; margin-left:10px;">{row['Pattern']}</span>
         </div>
         <div style="text-align:right;">
             <span style="color:#888; font-size:12px;">AI 戰術評分</span><br>
-            <span style="font-size:36px; font-weight:700; color:#00E676;">{row['Score']}</span>
+            <span style="font-size:36px; font-weight:700; color:#E53935;">{row['Score']}</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
     
     c1, c2, c3, c4 = st.columns(4)
-    # 這裡加上 float 轉換，防止報錯
+    # 數據格配色改為紅色系 (Tesla Red)
     c1.markdown(f'<div class="stat-card"><div class="stat-label">現價 PRICE</div><div class="stat-value">${float(row["Close"]):.2f}</div></div>', unsafe_allow_html=True)
-    c2.markdown(f'<div class="stat-card" style="border-bottom:3px solid #00E676"><div class="stat-label">買入 ENTRY</div><div class="stat-value" style="color:#00E676">${float(row["Entry"]):.2f}</div></div>', unsafe_allow_html=True)
+    c2.markdown(f'<div class="stat-card" style="border-bottom:3px solid #E53935"><div class="stat-label">買入 ENTRY</div><div class="stat-value" style="color:#E53935">${float(row["Entry"]):.2f}</div></div>', unsafe_allow_html=True)
     c3.markdown(f'<div class="stat-card" style="border-bottom:3px solid #FF1744"><div class="stat-label">止蝕 STOP</div><div class="stat-value" style="color:#FF1744">${float(row["Stop"]):.2f}</div></div>', unsafe_allow_html=True)
     c4.markdown(f'<div class="stat-card"><div class="stat-label">目標 TARGET (3R)</div><div class="stat-value">${float(row["Target"]):.2f}</div></div>', unsafe_allow_html=True)
     
@@ -304,14 +292,12 @@ def display_dashboard(row):
 if 'scan_data' not in st.session_state: st.session_state['scan_data'] = None
 if 'watchlist' not in st.session_state: st.session_state['watchlist'] = ["TSLA", "NVDA", "MSTR"]
 
+# 注入統一背景
+inject_css()
+
 with st.sidebar:
-    st.markdown("### 🦅 ALPHA STATION <span style='font-size:10px; color:#00E676; border:1px solid #00E676; padding:1px 3px;'>V13.0</span>", unsafe_allow_html=True)
-    # 這裡決定 current_mode
+    st.markdown("### 🦅 ALPHA STATION <span style='font-size:10px; color:#E53935; border:1px solid #E53935; padding:1px 3px;'>V14.0</span>", unsafe_allow_html=True)
     mode = st.radio("系統模組", ["⚡ 強勢股掃描器 (Scanner)", "👀 觀察名單 (Watchlist)", "⚡ TSLA 戰情室 (Intel)"])
-    
-    # 立即注入 CSS 確保背景正確切換
-    inject_css(mode)
-    
     st.markdown("---")
     
     if mode == "⚡ 強勢股掃描器 (Scanner)":
@@ -372,13 +358,11 @@ elif mode == "👀 觀察名單 (Watchlist)":
         sel = st.radio("List", st.session_state['watchlist'], label_visibility="collapsed")
     with c2:
         if sel:
-            # 修復 Crash 的關鍵點：增加錯誤處理與類型轉換
             try:
                 d = yf.download(sel, period="1y", progress=False)
                 if not d.empty:
                     # 安全取價
                     raw_close = d['Close'].iloc[-1]
-                    # 如果是 Series (MultiIndex 造成)，取值
                     if isinstance(raw_close, pd.Series):
                         curr_price = float(raw_close.iloc[0])
                     else:
@@ -393,9 +377,8 @@ elif mode == "👀 觀察名單 (Watchlist)":
                         components.html(f"""<div class="tradingview-widget-container" style="height:500px;width:100%"><div id="tv_{sel}" style="height:100%"></div><script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script><script type="text/javascript">new TradingView.widget({{ "autosize": true, "symbol": "{sel}", "interval": "D", "theme": "dark", "style": "1", "container_id": "tv_{sel}" }});</script></div>""", height=510)
             except Exception as e: st.error(f"數據讀取錯誤: {e}")
 
-# --- 模式 3: TSLA 戰情室 (紅色 Logo 背景) ---
 elif mode == "⚡ TSLA 戰情室 (Intel)":
-    st.markdown("<h1 style='text-align:center; color:#fff; text-shadow:0 0 20px #D50000;'>⚡ TESLA 戰情室</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align:center; color:#fff; text-shadow:0 0 20px #E53935;'>⚡ TESLA 戰情室</h1>", unsafe_allow_html=True)
     c1,c2,c3 = st.columns(3)
     c1.link_button("Google News", "https://www.google.com/search?q=Tesla+stock&tbm=nws", use_container_width=True)
     c2.link_button("Elon Musk X", "https://twitter.com/elonmusk", use_container_width=True)
@@ -407,7 +390,6 @@ elif mode == "⚡ TSLA 戰情室 (Intel)":
         try:
             t = yf.Ticker("TSLA")
             h = t.history(period="1d")
-            # 同樣強制轉型
             raw_close = h['Close'].iloc[-1]
             raw_open = h['Open'].iloc[0]
             curr = float(raw_close.iloc[0]) if isinstance(raw_close, pd.Series) else float(raw_close)
@@ -425,5 +407,5 @@ elif mode == "⚡ TSLA 戰情室 (Intel)":
             for m in r.json().get('messages', [])[:5]:
                 u = m['user']['username']
                 b = m['body']
-                st.markdown(f"<div style='background:rgba(0,0,0,0.8); padding:12px; margin-bottom:8px; border-radius:4px; border-left:3px solid #D50000; font-family:Noto Sans TC; font-size:13px;'><strong style='color:#D50000'>@{u}</strong><br><span style='color:#ccc'>{b}</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='background:rgba(0,0,0,0.8); padding:12px; margin-bottom:8px; border-radius:4px; border-left:3px solid #E53935; font-family:Noto Sans TC; font-size:13px;'><strong style='color:#E53935'>@{u}</strong><br><span style='color:#ccc'>{b}</span></div>", unsafe_allow_html=True)
         except: st.info("載入中...")
