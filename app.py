@@ -6,16 +6,18 @@ import requests
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 系統設定與視覺核心 (Tesla 主題)
+# 1. 系統設定與視覺核心 (Tesla Red Logo Theme)
 # ==========================================
 st.set_page_config(page_title="J Law Alpha Station", layout="wide", page_icon="🦅")
 
-# 背景圖：Tesla Model S 紅色車尾 (暗色調，適合當背景)
-GLOBAL_BG_URL = "https://images.hdqwalls.com/wallpapers/tesla-model-s-rear-4k-yu.jpg"
+# 設定背景圖：使用高清紅色 Tesla Logo (類似你提供的圖片)
+# 注意：若要完全使用你上傳的那張圖，你需要將該圖上傳到網絡圖床(如 Imgur)並替換此連結
+GLOBAL_BG_URL = "https://images.hdqwalls.com/wallpapers/tesla-logo-red-4k-yu.jpg"
 
 def inject_css():
-    # 使用深黑色遮罩 (90% 透明度) 確保文字清晰，背景隱約可見
-    overlay = "rgba(0,0,0,0.85), rgba(0,0,0,0.92)"
+    # 調整遮罩：中間較透明以顯示 Logo，四周較黑以利閱讀文字
+    # radial-gradient: 中心透明度 70%，向外漸變到 95% 黑色
+    overlay = "radial-gradient(circle, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.95) 90%)"
 
     style_code = f"""
     <style>
@@ -23,26 +25,33 @@ def inject_css():
 
         /* 全局背景 */
         .stApp {{
-            background-image: linear-gradient({overlay}), url("{GLOBAL_BG_URL}");
+            background-image: {overlay}, url("{GLOBAL_BG_URL}");
             background-size: cover;
             background-attachment: fixed;
             background-position: center;
+            background-repeat: no-repeat;
             color: #E0E0E0;
             font-family: 'Noto Sans TC', sans-serif;
         }}
         
-        /* 側邊欄 */
+        /* 側邊欄 - 半透明磨砂黑 */
         section[data-testid="stSidebar"] {{
-            background: rgba(10, 10, 10, 0.95);
+            background: rgba(5, 5, 5, 0.9);
             border-right: 1px solid #333;
+            backdrop-filter: blur(10px);
         }}
         
+        /* 標題與文字陰影 (確保在 Logo 上清晰) */
+        h1, h2, h3, h4, span, div {{
+            text-shadow: 0 2px 4px rgba(0,0,0,0.9);
+        }}
+
         /* Radio 按鈕優化 */
         div[role="radiogroup"] > label > div:first-child {{ display: none !important; }}
-        div[role="radiogroup"] {{ gap: 5px; }}
+        div[role="radiogroup"] {{ gap: 8px; }}
         
         div[role="radiogroup"] > label {{
-            background: rgba(255,255,255,0.03);
+            background: rgba(0,0,0,0.6);
             border: 1px solid #333;
             padding: 12px 15px;
             border-radius: 4px;
@@ -57,26 +66,28 @@ def inject_css():
         div[role="radiogroup"] > label:hover {{
             border-color: #E53935;
             color: #fff;
-            background: rgba(229, 57, 53, 0.1);
+            background: rgba(229, 57, 53, 0.2);
+            box-shadow: 0 0 15px rgba(229, 57, 53, 0.2);
         }}
         
         div[role="radiogroup"] > label[data-checked="true"] {{
             background: #000 !important;
             border: 1px solid #E53935;
-            box-shadow: 0 0 10px rgba(229, 57, 53, 0.3);
+            box-shadow: 0 0 15px rgba(229, 57, 53, 0.5); /* 選中時發紅光 */
             color: #E53935 !important;
             font-weight: 700;
         }}
 
         /* 數據卡片 */
         .stat-card {{
-            background: rgba(20,20,20,0.6);
+            background: rgba(20,20,20,0.7); /* 增加透明度 */
             border: 1px solid #444;
             padding: 12px;
             border-radius: 6px;
             text-align: center;
             height: 100%;
             margin-bottom: 10px;
+            backdrop-filter: blur(5px);
         }}
         .stat-label {{ font-size: 11px; color: #999; letter-spacing: 1px; text-transform: uppercase; }}
         .stat-value {{ font-size: 22px; font-weight: 700; color: #fff; margin-top: 2px; font-family: 'JetBrains Mono'; }}
@@ -84,7 +95,7 @@ def inject_css():
 
         /* 報告面板 */
         .report-panel {{
-            background: rgba(0, 0, 0, 0.6);
+            background: rgba(0, 0, 0, 0.75);
             border: 1px solid #444;
             border-left: 4px solid #E53935;
             padding: 20px;
@@ -93,6 +104,7 @@ def inject_css():
             line-height: 1.7;
             font-size: 15px;
             margin-bottom: 20px;
+            backdrop-filter: blur(5px);
         }}
         .report-hl {{ color: #E53935; font-weight: bold; }}
         .report-green {{ color: #00E676; font-weight: bold; }}
@@ -100,23 +112,25 @@ def inject_css():
         
         /* 按鈕樣式 */
         div.stButton > button {{
-            background: transparent;
+            background: rgba(0,0,0,0.5);
             border: 1px solid #E53935;
             color: #E53935;
             border-radius: 4px;
             width: 100%;
+            font-weight: bold;
         }}
         div.stButton > button:hover {{
-            background: rgba(229, 57, 53, 0.1);
+            background: rgba(229, 57, 53, 0.3);
             color: #fff;
             border-color: #fff;
+            box-shadow: 0 0 20px rgba(229, 57, 53, 0.6);
         }}
     </style>
     """
     st.markdown(style_code, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 數據與指標計算 (新增 RSI, MACD)
+# 2. 數據與指標計算 (RSI, MACD, MA)
 # ==========================================
 @st.cache_data
 def get_market_universe():
@@ -148,7 +162,6 @@ def calculate_rsi(series, period=14):
     delta = series.diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
-    
     rs = gain / loss
     rsi = 100 - (100 / (1 + rs))
     return rsi
@@ -161,7 +174,7 @@ def calculate_macd(series, fast=12, slow=26, signal=9):
     return macd, sig
 
 # ==========================================
-# 3. 核心分析邏輯 (深度升級)
+# 3. 核心分析邏輯 (包含 RSI/MACD 詳細解讀)
 # ==========================================
 def analyze_stock_pro(ticker, df):
     try:
@@ -195,7 +208,7 @@ def analyze_stock_pro(ticker, df):
         avg_vol = extract_scalar(vol_s.rolling(50).mean().iloc[-1])
         vol_ratio = vol / avg_vol if avg_vol > 0 else 1.0
 
-        # RSI & MACD (新增)
+        # RSI & MACD
         rsi_s = calculate_rsi(close_s)
         rsi_val = extract_scalar(rsi_s.iloc[-1])
         
@@ -204,7 +217,7 @@ def analyze_stock_pro(ticker, df):
         sig_val = extract_scalar(sig_s.iloc[-1])
         macd_hist = macd_val - sig_val
         
-        # 3. 過濾條件 (只看年線以上)
+        # 3. 過濾條件
         if close < ma200: return None
         
         pattern = ""
@@ -217,55 +230,53 @@ def analyze_stock_pro(ticker, df):
         dist_50 = (low - ma50) / ma50
         
         if abs(dist_20) <= 0.035 and close > ma20:
-            pattern = "🎾 Tennis Ball (網球行為)"
+            pattern = "🎾 Tennis Ball"
             score = 90
-            analysis_lines.append(f"📈 **趨勢結構**：長期多頭排列，股價回測 20日均線 (${ma20:.2f}) 獲得支撐，如網球落地反彈。")
+            analysis_lines.append(f"📈 **趨勢結構**：長期多頭，股價回測 20日均線 (${ma20:.2f}) 獲得支撐，如網球落地反彈。")
         elif abs(dist_10) <= 0.025 and close > ma10:
-            pattern = "🔥 Power Trend (強力趨勢)"
+            pattern = "🔥 Power Trend"
             score = 95
-            analysis_lines.append(f"📈 **趨勢結構**：超級強勢股特徵！股價沿著 10日均線 (${ma10:.2f}) 噴出，市場買盤極強。")
+            analysis_lines.append(f"📈 **趨勢結構**：超級強勢！股價沿 10日均線 (${ma10:.2f}) 噴出，買盤極強。")
         elif abs(dist_50) <= 0.03 and close > ma50:
-            pattern = "🛡️ Base Support (50MA防線)"
+            pattern = "🛡️ Base Support"
             score = 80
-            analysis_lines.append(f"📈 **趨勢結構**：中期波段修正至 50日機構成本線 (${ma50:.2f})，這是多頭的重要防守點。")
+            analysis_lines.append(f"📈 **趨勢結構**：回測 50日機構成本線 (${ma50:.2f})，多頭重要防守點。")
         else:
             return None 
 
-        # --- B. RSI 深度分析 ---
-        analysis_lines.append("<br>📊 **指標診斷 (RSI & MACD)**：")
-        rsi_status = ""
+        # --- B. 指標診斷 (RSI & MACD) ---
+        analysis_lines.append("<br>📊 **指標深度診斷**：")
+        
+        # RSI 分析
         if rsi_val > 75:
-            rsi_status = "🔥 超買區 (Overbought)"
-            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：進入{rsi_status}，短線過熱，不建議追高，適合等待回調或突破確認。")
+            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：<span style='color:#FF1744'>進入超買區</span>。短線過熱，注意隨時可能回調，不宜追高。")
             score -= 5
         elif rsi_val < 30:
-            rsi_status = "❄️ 超賣區 (Oversold)"
-            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：進入{rsi_status}，乖離過大，隨時可能有技術性反彈。")
+            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：<span style='color:#00E676'>進入超賣區</span>。乖離過大，可能出現反彈。")
             score += 5
         elif 50 <= rsi_val <= 70:
-            rsi_status = "🚀 強勢區 (Strong)"
-            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：處於多頭攻擊區 (50-70)，動能充沛且未過熱。")
+            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：處於多頭強勢區 (Bullish Zone)，動能健康。")
             score += 5
         else:
-            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：處於中性整理區間。")
+            analysis_lines.append(f"• **RSI ({rsi_val:.1f})**：中性整理區間。")
             
-        # --- C. MACD 分析 ---
+        # MACD 分析
         if macd_val > sig_val:
             if macd_val > 0:
-                analysis_lines.append(f"• **MACD**：黃金交叉且在零軸上方，多頭趨勢確立。")
+                analysis_lines.append(f"• **MACD**：零軸上黃金交叉，多頭趨勢確立，動能增強。")
             else:
-                analysis_lines.append(f"• **MACD**：低檔黃金交叉，可能是趨勢反轉的開始。")
+                analysis_lines.append(f"• **MACD**：低檔黃金交叉，可能是底部反轉訊號。")
         else:
-            if macd_hist > -0.5: # 柱狀圖收斂
-                analysis_lines.append(f"• **MACD**：雖然死叉，但綠柱狀圖收斂，賣壓可能減輕。")
+            if macd_hist > -0.5:
+                analysis_lines.append(f"• **MACD**：雖然死叉，但綠柱收斂，賣壓減輕中。")
             else:
-                analysis_lines.append(f"• **MACD**：死亡交叉向下，動能偏弱，需小心。")
+                analysis_lines.append(f"• **MACD**：<span style='color:#FF1744'>死亡交叉向下</span>，動能轉弱，需謹慎。")
 
-        # --- D. 量能分析 ---
+        # --- C. 量能 ---
         if vol_ratio < 0.75:
-            analysis_lines.append(f"💧 **量能**：縮量整理 ({int(vol_ratio*100)}% 均量)，籌碼沉澱良好。")
+            analysis_lines.append(f"💧 **量能**：縮量整理 ({int(vol_ratio*100)}% 均量)，籌碼沉澱。")
         elif vol_ratio > 1.5:
-            analysis_lines.append(f"🚀 **量能**：爆量攻擊 ({vol_ratio:.1f}x 均量)，主力資金進駐。")
+            analysis_lines.append(f"🚀 **量能**：爆量攻擊 ({vol_ratio:.1f}x 均量)，主力進駐。")
             score += 5
 
         # 交易參數
@@ -305,7 +316,7 @@ def display_dashboard(row):
     <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid #444; padding-bottom:15px; margin-bottom:15px;">
         <div>
             <span style="color:#E53935; font-size:14px; font-weight:bold;">STOCK TICKER</span><br>
-            <span style="font-size:52px; font-weight:900; letter-spacing:-2px; color:#fff; font-family:'JetBrains Mono';">{row['Symbol']}</span>
+            <span style="font-size:52px; font-weight:900; letter-spacing:-2px; color:#fff; font-family:'JetBrains Mono'; text-shadow: 0 0 20px rgba(229, 57, 53, 0.6);">{row['Symbol']}</span>
             <span style="background:rgba(229, 57, 53, 0.2); color:#ff6b6b; border:1px solid #E53935; padding:2px 8px; font-size:12px; margin-left:10px; border-radius:3px; vertical-align:middle;">{row['Pattern']}</span>
         </div>
         <div style="text-align:right;">
@@ -322,13 +333,13 @@ def display_dashboard(row):
     c3.markdown(f'<div class="stat-card" style="border-bottom:2px solid #FF1744"><div class="stat-label">止蝕 STOP</div><div class="stat-value" style="color:#FF1744">${float(row["Stop"]):.2f}</div></div>', unsafe_allow_html=True)
     c4.markdown(f'<div class="stat-card"><div class="stat-label">目標 TARGET (3R)</div><div class="stat-value">${float(row["Target"]):.2f}</div></div>', unsafe_allow_html=True)
     
-    # 第二排：技術指標儀表板 (新增)
+    # 第二排：技術指標儀表板 (RSI & MACD)
     d1, d2, d3, d4 = st.columns(4)
     
     # RSI 顏色邏輯
     rsi_val = row['RSI']
     rsi_color = "#FF1744" if rsi_val > 70 else "#00E676" if rsi_val < 30 else "#fff"
-    d1.markdown(f'<div class="stat-card"><div class="stat-label">RSI (14)</div><div class="stat-value" style="color:{rsi_color}">{rsi_val:.1f}</div><div class="stat-sub">相對強弱</div></div>', unsafe_allow_html=True)
+    d1.markdown(f'<div class="stat-card"><div class="stat-label">RSI (14)</div><div class="stat-value" style="color:{rsi_color}">{rsi_val:.1f}</div><div class="stat-sub">相對強弱指標</div></div>', unsafe_allow_html=True)
     
     # MACD 邏輯
     macd_hist = row['MACD_Hist']
@@ -355,12 +366,12 @@ def display_dashboard(row):
         st.markdown(f"""
         <div class="report-panel">
             <div style="border-bottom:1px solid #444; padding-bottom:10px; margin-bottom:10px; display:flex; justify-content:space-between;">
-                <span class="report-hl">⚡ J LAW 深度戰術報告</span>
-                <span style="font-size:12px; color:#888;">AI GENERATED</span>
+                <span class="report-hl">⚡ J LAW 戰術報告</span>
+                <span style="font-size:12px; color:#888;">AI ANALYZED</span>
             </div>
             {row['Report']}
             <br><br>
-            <div style="border-top:1px solid #444; padding-top:15px; color:#aaa; font-size:13px; background:rgba(255,255,255,0.02); padding:10px; border-radius:4px;">
+            <div style="border-top:1px solid #444; padding-top:15px; color:#aaa; font-size:13px; background:rgba(255,255,255,0.05); padding:10px; border-radius:4px;">
                 <span class="report-hl">🎯 執行策略 (Execution):</span><br>
                 在 <b>${float(row['Entry']):.2f}</b> 設定觸價買單 (Stop Buy)。<br>
                 止損設於 <b class="report-risk">${float(row['Stop']):.2f}</b> (-{row['RiskPct']:.1f}%)。<br>
@@ -404,7 +415,7 @@ if 'watchlist' not in st.session_state: st.session_state['watchlist'] = ["TSLA",
 inject_css()
 
 with st.sidebar:
-    st.markdown("### 🦅 ALPHA STATION <span style='font-size:10px; color:#E53935; border:1px solid #E53935; padding:1px 3px;'>V16.0 Ultra</span>", unsafe_allow_html=True)
+    st.markdown("### 🦅 ALPHA STATION <span style='font-size:10px; color:#E53935; border:1px solid #E53935; padding:1px 3px;'>V18.0 Elite</span>", unsafe_allow_html=True)
     mode = st.radio("系統模組", ["⚡ 強勢股掃描器", "👀 觀察名單", "🚨 TSLA 戰情室"])
     
     st.markdown("---")
@@ -448,7 +459,7 @@ with st.sidebar:
 
 # 頁面渲染
 if mode == "⚡ 強勢股掃描器":
-    st.title("⚡ 強勢股掃描器 (Scanner)")
+    st.title("⚡ 強勢股掃描器")
     df = st.session_state['scan_data']
     
     if df is None:
@@ -458,7 +469,7 @@ if mode == "⚡ 強勢股掃描器":
     else:
         c_list, c_main = st.columns([1, 3.5])
         with c_list:
-            st.markdown(f"<div style='margin-bottom:10px; color:#E53935; font-weight:bold; font-size:14px;'>掃描結果 ({len(df)})</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-bottom:10px; color:#E53935; font-weight:bold; font-size:14px; text-shadow:0 0 10px red;'>掃描結果 ({len(df)})</div>", unsafe_allow_html=True)
             
             fmt_map = {row['Symbol']: f"{row['Symbol']}  [{row['Score']}]" for idx, row in df.iterrows()}
             sel = st.radio("Results", df['Symbol'].tolist(), 
@@ -487,7 +498,6 @@ elif mode == "👀 觀察名單":
                 r = analyze_stock_pro(sel, d)
                 if r: display_dashboard(r)
                 else:
-                    # 簡易顯示模式 (當無策略訊號時)
                     curr = extract_scalar(d['Close'].iloc[-1])
                     rsi_s = calculate_rsi(d['Close']); rsi_now = extract_scalar(rsi_s.iloc[-1])
                     st.header(f"{sel}")
@@ -497,7 +507,7 @@ elif mode == "👀 觀察名單":
                     m2.metric("RSI (14)", f"{rsi_now:.1f}")
                     m3.info("目前無特定型態訊號")
                     
-                    tv_html = f"""<div class="tradingview-widget-container" style="height:500px;width:100%"><div id="tv_{sel}" style="height:100%"></div><script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script><script type="text/javascript">new TradingView.widget({{ "autosize": true, "symbol": "{sel}", "interval": "D", "theme": "dark", "style": "1", "studies": ["RSI@tv-basicstudies"], "container_id": "tv_{sel}" }});</script></div>"""
+                    tv_html = f"""<div class="tradingview-widget-container" style="height:500px;width:100%"><div id="tv_{sel}" style="height:100%"></div><script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script><script type="text/javascript">new TradingView.widget({{ "autosize": true, "symbol": "{sel}", "interval": "D", "theme": "dark", "style": "1", "studies": ["RSI@tv-basicstudies", "MACD@tv-basicstudies"], "container_id": "tv_{sel}" }});</script></div>"""
                     components.html(tv_html, height=510)
 
 elif mode == "🚨 TSLA 戰情室":
