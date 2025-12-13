@@ -4,9 +4,10 @@ import pandas as pd
 import numpy as np
 import requests 
 import streamlit.components.v1 as components
+import datetime
 
 # ==========================================
-# 1. 系統視覺核心 (統一紅黑背景)
+# 1. 系統設定與視覺核心
 # ==========================================
 st.set_page_config(page_title="J Law Alpha Station", layout="wide", page_icon="🦅")
 
@@ -14,14 +15,14 @@ st.set_page_config(page_title="J Law Alpha Station", layout="wide", page_icon="�
 GLOBAL_BG_URL = "https://images.hdqwalls.com/wallpapers/tesla-logo-red-4k-yu.jpg"
 
 def inject_css():
-    # 統一使用深色遮罩，確保文字在紅色 Logo 上清晰可見
+    # 統一使用深色遮罩
     overlay = "rgba(0,0,0,0.85), rgba(0,0,0,0.95)"
 
     style_code = f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
 
-        /* 全局背景設定 (應用於所有頁面) */
+        /* 全局背景 */
         .stApp {{
             background-image: linear-gradient({overlay}), url("{GLOBAL_BG_URL}");
             background-size: cover;
@@ -38,7 +39,7 @@ def inject_css():
             backdrop-filter: blur(10px);
         }}
         
-        /* 隱藏原生 Radio 按鈕 */
+        /* Radio 按鈕優化 */
         div[role="radiogroup"] > label > div:first-child {{ display: none !important; }}
         div[role="radiogroup"] {{ gap: 5px; }}
         
@@ -52,16 +53,16 @@ def inject_css():
             font-size: 14px;
             color: #aaa;
             cursor: pointer;
+            width: 100%;
         }}
         
         div[role="radiogroup"] > label:hover {{
-            border-color: #E53935; /* 改為紅色光 */
+            border-color: #E53935;
             color: #fff;
             background: rgba(229, 57, 53, 0.1);
             transform: translateX(3px);
         }}
         
-        /* 選中狀態：紅色主題 */
         div[role="radiogroup"] > label[data-checked="true"] {{
             background: #000 !important;
             border: 1px solid #E53935;
@@ -70,22 +71,23 @@ def inject_css():
             font-weight: 700;
         }}
 
-        /* 數據儀表板 */
+        /* 數據卡片 */
         .stat-card {{
             background: rgba(20,20,20,0.8);
             border: 1px solid #333;
             padding: 15px;
             border-radius: 6px;
             text-align: center;
+            height: 100%;
         }}
         .stat-label {{ font-size: 12px; color: #888; letter-spacing: 1px; }}
         .stat-value {{ font-size: 24px; font-weight: 700; color: #fff; margin-top: 5px; font-family: 'JetBrains Mono'; }}
 
-        /* J Law 報告面板 */
+        /* 報告面板 */
         .report-panel {{
             background: rgba(10, 10, 10, 0.9);
             border: 1px solid #333;
-            border-left: 4px solid #E53935; /* 改為紅色邊 */
+            border-left: 4px solid #E53935;
             padding: 25px;
             border-radius: 4px;
             font-family: 'Noto Sans TC', sans-serif;
@@ -93,10 +95,10 @@ def inject_css():
             font-size: 15px;
             margin-bottom: 20px;
         }}
-        .report-hl {{ color: #E53935; font-weight: bold; }} /* 重點色改紅 */
+        .report-hl {{ color: #E53935; font-weight: bold; }}
         .report-risk {{ color: #FF1744; font-weight: bold; }}
         
-        /* 按鈕優化 */
+        /* 按鈕樣式 */
         div.stButton > button {{
             background: transparent;
             border: 1px solid #E53935;
@@ -104,10 +106,13 @@ def inject_css():
             border-radius: 4px;
             font-family: 'Noto Sans TC';
             font-weight: bold;
+            width: 100%;
         }}
         div.stButton > button:hover {{
             background: rgba(229, 57, 53, 0.1);
             box-shadow: 0 0 15px rgba(229, 57, 53, 0.4);
+            color: #fff;
+            border-color: #fff;
         }}
         
         h1, h2, h3 {{ color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.8); }}
@@ -116,7 +121,7 @@ def inject_css():
     st.markdown(style_code, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 市場核心清單
+# 2. 數據處理與緩存 (優化核心)
 # ==========================================
 @st.cache_data
 def get_market_universe():
@@ -125,71 +130,107 @@ def get_market_universe():
         "AMD", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "AVGO", "NET",
         "CRWD", "PANW", "UBER", "ABNB", "DASH", "DKNG", "RIVN", "CVNA",
         "AFRM", "UPST", "MARA", "CLSK", "RIOT", "SOFI", "PATH", "U", "AI",
-        "ARM", "MU", "QCOM", "INTC", "TSM", "CELH", "ELF", "LULU", "ONON"
+        "ARM", "MU", "QCOM", "INTC", "TSM", "CELH", "ELF", "LULU", "ONON", "HIMS"
     ]
 
+# [優化] 使用緩存下載數據，TTL 設定 900秒 (15分鐘)，盤中不需要秒秒更新
+@st.cache_data(ttl=900, show_spinner=False)
+def fetch_bulk_data(tickers):
+    try:
+        # 下載 1 年數據用於計算 MA200
+        data = yf.download(tickers, period="1y", group_by='ticker', threads=True, progress=False)
+        return data
+    except Exception as e:
+        st.error(f"數據下載失敗: {e}")
+        return pd.DataFrame()
+
+# [優化] 單一股票下載緩存
+@st.cache_data(ttl=300, show_spinner=False)
+def fetch_single_data(ticker):
+    return yf.download(ticker, period="1y", progress=False)
+
 # ==========================================
-# 3. J Law 核心大腦
+# 3. J Law 核心大腦 (邏輯增強)
 # ==========================================
+def extract_scalar(value):
+    """安全提取數值，處理 Series 或 numpy scalar"""
+    if isinstance(value, pd.Series):
+        return float(value.iloc[0])
+    try:
+        return float(value)
+    except:
+        return 0.0
+
 def analyze_stock_pro(ticker, df):
     try:
-        if len(df) < 200: return None
+        if df is None or len(df) < 200: return None
+        
+        # 確保數據按日期排序
+        df = df.sort_index()
         curr = df.iloc[-1]
         
-        # 安全獲取數值
+        # 安全獲取 OHLCV
         try:
-            close = float(curr['Close'])
-            high = float(curr['High'])
-            low = float(curr['Low'])
-            vol = float(curr['Volume'])
-        except:
-            close = float(curr['Close'].iloc[0]) if hasattr(curr['Close'], 'iloc') else float(curr['Close'])
-            high = float(curr['High'].iloc[0]) if hasattr(curr['High'], 'iloc') else float(curr['High'])
-            low = float(curr['Low'].iloc[0]) if hasattr(curr['Low'], 'iloc') else float(curr['Low'])
-            vol = float(curr['Volume'].iloc[0]) if hasattr(curr['Volume'], 'iloc') else float(curr['Volume'])
+            close = extract_scalar(curr['Close'])
+            high = extract_scalar(curr['High'])
+            low = extract_scalar(curr['Low'])
+            vol = extract_scalar(curr['Volume'])
+        except Exception:
+            return None
         
-        # 指標
-        ma10 = df['Close'].rolling(10).mean().iloc[-1]
-        ma20 = df['Close'].rolling(20).mean().iloc[-1]
-        ma50 = df['Close'].rolling(50).mean().iloc[-1]
-        ma200 = df['Close'].rolling(200).mean().iloc[-1]
+        # 計算技術指標
+        close_series = df['Close']
+        if isinstance(close_series, pd.DataFrame): close_series = close_series.iloc[:, 0] # 處理 MultiIndex 異常
         
-        atr = (df['High'] - df['Low']).rolling(14).mean().iloc[-1]
-        avg_vol = df['Volume'].rolling(50).mean().iloc[-1]
+        ma10 = extract_scalar(close_series.rolling(10).mean().iloc[-1])
+        ma20 = extract_scalar(close_series.rolling(20).mean().iloc[-1])
+        ma50 = extract_scalar(close_series.rolling(50).mean().iloc[-1])
+        ma200 = extract_scalar(close_series.rolling(200).mean().iloc[-1])
+        
+        # ATR 計算
+        high_s = df['High'] if isinstance(df['High'], pd.Series) else df['High'].iloc[:, 0]
+        low_s = df['Low'] if isinstance(df['Low'], pd.Series) else df['Low'].iloc[:, 0]
+        atr = extract_scalar((high_s - low_s).rolling(14).mean().iloc[-1])
+        
+        # 成交量
+        vol_s = df['Volume'] if isinstance(df['Volume'], pd.Series) else df['Volume'].iloc[:, 0]
+        avg_vol = extract_scalar(vol_s.rolling(50).mean().iloc[-1])
         
         if avg_vol == 0: vol_ratio = 1.0
         else: vol_ratio = vol / avg_vol
         
-        # 趨勢過濾
+        # 基礎過濾：必須在年線之上
         if close < ma200: return None
         
         pattern = ""
         score = 0
         analysis_lines = []
         
-        # --- 型態識別 ---
-        # A. Tennis Ball
+        # --- 型態識別邏輯 ---
+        # A. Tennis Ball (回測 20MA)
         dist_20 = (low - ma20) / ma20
+        # 條件：低點觸及 20MA 附近 (+/- 3.5%) 且 收盤價 > 20MA
         if abs(dist_20) <= 0.035 and close > ma20:
             pattern = "🎾 Tennis Ball (網球行為)"
             score = 90
             analysis_lines.append(f"📈 **趨勢解讀**：股價長期趨勢向上，目前有序回測 20日均線 (${ma20:.2f})。")
             analysis_lines.append(f"✅ **型態確認**：股價觸及均線後有支撐，如同網球落地反彈，機構仍在控盤。")
 
-        # B. Power Trend
+        # B. Power Trend (強勢 10MA)
         elif abs((low - ma10)/ma10) <= 0.025 and close > ma10:
             pattern = "🔥 Power Trend (強力趨勢)"
             score = 95
             analysis_lines.append(f"📈 **趨勢解讀**：進入超級動能狀態！股價緊貼 10日均線 (${ma10:.2f}) 攀升。")
             analysis_lines.append(f"✅ **型態確認**：最強勢持有訊號，市場惜售心理極強。")
 
-        # C. 50MA Defense
+        # C. 50MA Defense (最後防線)
         elif abs((low - ma50)/ma50) <= 0.03 and close > ma50:
             pattern = "🛡️ Base Support (50MA防線)"
             score = 80
             analysis_lines.append(f"📈 **趨勢解讀**：中期修正波段，回測 50日機構成本線 (${ma50:.2f})。")
             analysis_lines.append(f"✅ **型態確認**：多頭最後防線，觀察是否出現止跌 K 線。")
         else:
+            # 不符合核心型態
             return None 
             
         # 量能分析
@@ -199,19 +240,22 @@ def analyze_stock_pro(ticker, df):
         elif vol_ratio > 1.5:
             analysis_lines.append(f"🚀 **量能籌碼**：爆量攻擊！成交量放大至 {vol_ratio:.1f}倍，大戶資金進場。")
             
-        # 交易計劃
+        # 交易計劃計算
         entry_price = high + (atr * 0.1)
         
-        if "10MA" in pattern: stop_price = ma20 - (atr * 0.1)
-        elif "20MA" in pattern: stop_price = low - (atr * 0.2)
+        if "10MA" in pattern or "Power" in pattern: stop_price = ma20 - (atr * 0.1)
+        elif "20MA" in pattern or "Tennis" in pattern: stop_price = low - (atr * 0.2)
         else: stop_price = ma50 - (atr * 0.1)
         
-        if entry_price <= stop_price: return None
+        # 防止止損價高於買入價 (數據異常時)
+        if entry_price <= stop_price: stop_price = entry_price * 0.95
         
         risk_per_share = entry_price - stop_price
         target_price = entry_price + (risk_per_share * 3)
         risk_pct = (risk_per_share / entry_price) * 100
-        rr_ratio = (target_price - entry_price) / risk_per_share
+        
+        if risk_per_share == 0: rr_ratio = 0
+        else: rr_ratio = (target_price - entry_price) / risk_per_share
         
         analysis_lines.append(f"⚠️ **風險評估**：單筆風險為 -{risk_pct:.2f}%。")
         
@@ -227,15 +271,18 @@ def analyze_stock_pro(ticker, df):
             "RR": rr_ratio,
             "Report": "<br>".join(analysis_lines)
         }
-    except: return None
+    except Exception as e:
+        # print(f"Error analyzing {ticker}: {e}") # Debug only
+        return None
 
 def display_dashboard(row):
+    # 標題區
     st.markdown(f"""
     <div style="display:flex; justify-content:space-between; align-items:flex-end; border-bottom:1px solid #333; padding-bottom:15px; margin-bottom:20px;">
         <div>
             <span style="color:#E53935; font-size:14px; font-weight:bold;">STOCK TICKER</span><br>
             <span style="font-size:48px; font-weight:900; letter-spacing:-1px; color:#fff;">{row['Symbol']}</span>
-            <span style="background:rgba(229, 57, 53, 0.1); color:#E53935; border:1px solid #E53935; padding:2px 8px; font-size:12px; margin-left:10px;">{row['Pattern']}</span>
+            <span style="background:rgba(229, 57, 53, 0.1); color:#E53935; border:1px solid #E53935; padding:2px 8px; font-size:12px; margin-left:10px; border-radius:3px; vertical-align:middle;">{row['Pattern']}</span>
         </div>
         <div style="text-align:right;">
             <span style="color:#888; font-size:12px;">AI 戰術評分</span><br>
@@ -244,8 +291,8 @@ def display_dashboard(row):
     </div>
     """, unsafe_allow_html=True)
     
+    # 數據卡片區
     c1, c2, c3, c4 = st.columns(4)
-    # 數據格配色改為紅色系 (Tesla Red)
     c1.markdown(f'<div class="stat-card"><div class="stat-label">現價 PRICE</div><div class="stat-value">${float(row["Close"]):.2f}</div></div>', unsafe_allow_html=True)
     c2.markdown(f'<div class="stat-card" style="border-bottom:3px solid #E53935"><div class="stat-label">買入 ENTRY</div><div class="stat-value" style="color:#E53935">${float(row["Entry"]):.2f}</div></div>', unsafe_allow_html=True)
     c3.markdown(f'<div class="stat-card" style="border-bottom:3px solid #FF1744"><div class="stat-label">止蝕 STOP</div><div class="stat-value" style="color:#FF1744">${float(row["Stop"]):.2f}</div></div>', unsafe_allow_html=True)
@@ -253,38 +300,44 @@ def display_dashboard(row):
     
     st.write("")
     
-    st.markdown(f"""
-    <div class="report-panel">
-        <div style="border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:10px;">
-            <span class="report-hl">⚡ J LAW 戰術分析報告</span>
-        </div>
-        {row['Report']}
-        <br><br>
-        <div style="border-top:1px solid #333; padding-top:15px; color:#aaa; font-size:14px;">
-            <span class="report-hl">🎯 交易執行計劃 (Execution):</span><br>
-            1. 請在券商設定 <b>Stop Limit Buy Order (觸價買單)</b> 於 <b>${float(row['Entry']):.2f}</b>。<br>
-            2. 一旦成交，立即設定硬性止損單於 <b class="report-risk">${float(row['Stop']):.2f}</b>。<br>
-            3. 此交易預期風險回報比 (R/R) 為 <b>1:{float(row['RR']):.1f}</b>。
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # 分析報告區
+    col_text, col_chart = st.columns([1, 1.5])
     
-    tv_html = f"""
-    <div class="tradingview-widget-container" style="height:600px;width:100%">
-      <div id="tv_{row['Symbol']}" style="height:100%"></div>
-      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-      <script type="text/javascript">
-      new TradingView.widget({{
-        "autosize": true, "symbol": "{row['Symbol']}", "interval": "D", "timezone": "Exchange", "theme": "dark", "style": "1",
-        "locale": "zh_TW", "toolbar_bg": "#000", "enable_publishing": false, "hide_side_toolbar": false, "allow_symbol_change": true,
-        "container_id": "tv_{row['Symbol']}",
-        "studies": ["MASimple@tv-basicstudies","MASimple@tv-basicstudies","MASimple@tv-basicstudies"],
-        "studies_overrides": {{ "MASimple@tv-basicstudies.length": 10, "MASimple@tv-basicstudies.length": 20, "MASimple@tv-basicstudies.length": 50 }}
-      }});
-      </script>
-    </div>
-    """
-    components.html(tv_html, height=610)
+    with col_text:
+        st.markdown(f"""
+        <div class="report-panel">
+            <div style="border-bottom:1px solid #333; padding-bottom:10px; margin-bottom:10px;">
+                <span class="report-hl">⚡ J LAW 戰術分析報告</span>
+            </div>
+            {row['Report']}
+            <br><br>
+            <div style="border-top:1px solid #333; padding-top:15px; color:#aaa; font-size:14px;">
+                <span class="report-hl">🎯 交易執行計劃 (Execution):</span><br>
+                1. 請在券商設定 <b>Stop Limit Buy Order (觸價買單)</b> 於 <b>${float(row['Entry']):.2f}</b>。<br>
+                2. 一旦成交，立即設定硬性止損單於 <b class="report-risk">${float(row['Stop']):.2f}</b>。<br>
+                3. 此交易預期風險回報比 (R/R) 為 <b>1:{float(row['RR']):.1f}</b>。
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+    with col_chart:
+        # TradingView Widget
+        tv_html = f"""
+        <div class="tradingview-widget-container" style="height:500px;width:100%">
+          <div id="tv_{row['Symbol']}" style="height:100%"></div>
+          <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+          <script type="text/javascript">
+          new TradingView.widget({{
+            "autosize": true, "symbol": "{row['Symbol']}", "interval": "D", "timezone": "Exchange", "theme": "dark", "style": "1",
+            "locale": "zh_TW", "toolbar_bg": "#000", "enable_publishing": false, "hide_side_toolbar": false, "allow_symbol_change": true,
+            "container_id": "tv_{row['Symbol']}",
+            "studies": ["MASimple@tv-basicstudies","MASimple@tv-basicstudies","MASimple@tv-basicstudies"],
+            "studies_overrides": {{ "MASimple@tv-basicstudies.length": 10, "MASimple@tv-basicstudies.length": 20, "MASimple@tv-basicstudies.length": 50 }}
+          }});
+          </script>
+        </div>
+        """
+        components.html(tv_html, height=500)
 
 # ==========================================
 # 5. 主程式邏輯
@@ -292,120 +345,191 @@ def display_dashboard(row):
 if 'scan_data' not in st.session_state: st.session_state['scan_data'] = None
 if 'watchlist' not in st.session_state: st.session_state['watchlist'] = ["TSLA", "NVDA", "MSTR"]
 
-# 注入統一背景
 inject_css()
 
 with st.sidebar:
-    st.markdown("### 🦅 ALPHA STATION <span style='font-size:10px; color:#E53935; border:1px solid #E53935; padding:1px 3px;'>V14.0</span>", unsafe_allow_html=True)
-    mode = st.radio("系統模組", ["⚡ 強勢股掃描器 (Scanner)", "👀 觀察名單 (Watchlist)", "⚡ TSLA 戰情室 (Intel)"])
+    st.markdown("### 🦅 ALPHA STATION <span style='font-size:10px; color:#E53935; border:1px solid #E53935; padding:1px 3px;'>V15.0 Pro</span>", unsafe_allow_html=True)
+    mode = st.radio("系統模組", ["⚡ 強勢股掃描器", "👀 觀察名單", "🚨 TSLA 戰情室"])
+    
     st.markdown("---")
     
-    if mode == "⚡ 強勢股掃描器 (Scanner)":
-        st.caption("監控目標：華爾街熱門交易標的")
-        if st.button("🔥 啟動全市場掃描", use_container_width=True):
+    if mode == "⚡ 強勢股掃描器":
+        st.caption("SCANNER CONTROLS")
+        if st.button("🔥 啟動全市場掃描"):
             universe = get_market_universe()
-            status = st.status("正在連線華爾街數據庫...", expanded=True)
             
-            data = yf.download(universe, period="1y", group_by='ticker', threads=True, progress=False)
-            results = []
-            prog = status.progress(0)
+            with st.spinner('正在連線華爾街數據庫 (Downloading)...'):
+                # 這裡使用了緩存函數，第二次點擊會秒開
+                data = fetch_bulk_data(universe)
             
-            for i, ticker in enumerate(universe):
-                prog.progress((i + 1) / len(universe))
-                try:
-                    if len(universe) > 1:
-                        if ticker not in data.columns.levels[0]: continue
-                        df = data[ticker].dropna()
-                    else: df = data
-                    res = analyze_stock_pro(ticker, df)
-                    if res: results.append(res)
-                except: continue
-                
-            status.update(label="掃描完成", state="complete", expanded=False)
-            
-            if results:
-                st.session_state['scan_data'] = pd.DataFrame(results).sort_values('Score', ascending=False)
+            if data.empty:
+                st.error("無法連接數據源，請稍後再試。")
             else:
-                st.session_state['scan_data'] = pd.DataFrame()
+                results = []
+                # 掃描邏輯優化：不使用 status 進度條以免拖慢速度，直接計算
+                progress_bar = st.progress(0)
+                total = len(universe)
+                
+                for i, ticker in enumerate(universe):
+                    try:
+                        # 處理 MultiIndex 列名
+                        if isinstance(data.columns, pd.MultiIndex):
+                            if ticker in data.columns.levels[0]:
+                                df_tick = data[ticker].dropna(how='all')
+                            else:
+                                continue
+                        else:
+                            # 只有一個股票時
+                            if data.empty: continue
+                            df_tick = data
+                            
+                        res = analyze_stock_pro(ticker, df_tick)
+                        if res: results.append(res)
+                    except Exception as e:
+                        continue
+                    finally:
+                        progress_bar.progress((i + 1) / total)
+                
+                progress_bar.empty()
+                st.toast(f"掃描完成！發現 {len(results)} 支潛力股", icon="✅")
+                
+                if results:
+                    st.session_state['scan_data'] = pd.DataFrame(results).sort_values('Score', ascending=False)
+                else:
+                    st.session_state['scan_data'] = pd.DataFrame()
+
+    # 底部工具
+    st.markdown("---")
+    if st.button("🧹 清除系統緩存", help="如果數據沒更新，請點此按鈕"):
+        st.cache_data.clear()
+        st.rerun()
 
 # 頁面渲染
-if mode == "⚡ 強勢股掃描器 (Scanner)":
-    st.title("⚡ 強勢股掃描器")
+if mode == "⚡ 強勢股掃描器":
+    st.title("⚡ 強勢股掃描器 (Scanner)")
     df = st.session_state['scan_data']
     
     if df is None:
-        st.info("系統待命。請點擊左側 [ 🔥 啟動全市場掃描 ] 。")
+        st.info("系統待命。請點擊左側 [ 🔥 啟動全市場掃描 ] 。", icon="🦅")
     elif df.empty:
         st.warning("⚠️ 掃描完成：今日市場環境較差，未發現符合 J Law 標準的標的。")
     else:
-        c_list, c_main = st.columns([1, 4])
+        # 使用更緊湊的佈局
+        c_list, c_main = st.columns([1, 3.5])
         with c_list:
-            st.markdown(f"<div style='margin-bottom:10px; color:#888; font-size:12px;'>掃描結果 ({len(df)})</div>", unsafe_allow_html=True)
-            sel = st.radio("Results", df['Symbol'].tolist(), 
-                         format_func=lambda x: f"{x}  [{df[df['Symbol']==x]['Score'].values[0]}]",
+            st.markdown(f"<div style='margin-bottom:10px; color:#E53935; font-weight:bold; font-size:14px;'>掃描結果 ({len(df)})</div>", unsafe_allow_html=True)
+            
+            # 使用列表顯示分數
+            options = df['Symbol'].tolist()
+            # 格式化顯示：Ticker (Score)
+            fmt_map = {row['Symbol']: f"{row['Symbol']}  [{row['Score']}]" for idx, row in df.iterrows()}
+            
+            sel = st.radio("Results", options, 
+                         format_func=lambda x: fmt_map.get(x, x),
                          label_visibility="collapsed")
+        
         with c_main:
-            row = df[df['Symbol'] == sel].iloc[0]
-            display_dashboard(row)
+            if sel:
+                row = df[df['Symbol'] == sel].iloc[0]
+                display_dashboard(row)
 
-elif mode == "👀 觀察名單 (Watchlist)":
+elif mode == "👀 觀察名單":
     st.title("👀 我的觀察名單")
-    c1, c2 = st.columns([1, 4])
+    c1, c2 = st.columns([1, 3.5])
     with c1:
-        new_t = st.text_input("輸入代碼", "").upper()
-        if st.button("➕ 新增") and new_t:
-            if new_t not in st.session_state['watchlist']: st.session_state['watchlist'].append(new_t)
+        new_t = st.text_input("輸入代碼 (例如 AAPL)", "").upper()
+        if st.button("➕ 新增", use_container_width=True) and new_t:
+            if new_t not in st.session_state['watchlist']: 
+                st.session_state['watchlist'].append(new_t)
+                st.success(f"已新增 {new_t}")
+        
+        st.markdown("---")
         sel = st.radio("List", st.session_state['watchlist'], label_visibility="collapsed")
+        
     with c2:
         if sel:
-            try:
-                d = yf.download(sel, period="1y", progress=False)
-                if not d.empty:
-                    # 安全取價
-                    raw_close = d['Close'].iloc[-1]
-                    if isinstance(raw_close, pd.Series):
-                        curr_price = float(raw_close.iloc[0])
-                    else:
-                        curr_price = float(raw_close)
-                        
-                    r = analyze_stock_pro(sel, d)
-                    if r: display_dashboard(r)
-                    else:
-                        st.header(f"{sel}")
-                        st.info("⚠️ 目前無 J Law 戰術訊號，僅顯示即時走勢。")
-                        st.metric("現價", f"${curr_price:.2f}")
-                        components.html(f"""<div class="tradingview-widget-container" style="height:500px;width:100%"><div id="tv_{sel}" style="height:100%"></div><script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script><script type="text/javascript">new TradingView.widget({{ "autosize": true, "symbol": "{sel}", "interval": "D", "theme": "dark", "style": "1", "container_id": "tv_{sel}" }});</script></div>""", height=510)
-            except Exception as e: st.error(f"數據讀取錯誤: {e}")
+            d = fetch_single_data(sel) # 使用緩存函數
+            if not d.empty:
+                r = analyze_stock_pro(sel, d)
+                if r: 
+                    display_dashboard(r)
+                else:
+                    # 無訊號時顯示基本圖表
+                    curr = extract_scalar(d['Close'].iloc[-1])
+                    st.header(f"{sel}")
+                    st.markdown(f"""
+                    <div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:5px; border-left:4px solid #888; margin-bottom:20px;">
+                        <span style="font-size:14px; color:#aaa;">CURRENT PRICE</span><br>
+                        <span style="font-size:32px; font-weight:bold;">${curr:.2f}</span>
+                        <br><span style="color:#aaa;">⚠️ 目前無 J Law 戰術訊號，僅顯示即時走勢。</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    tv_html = f"""<div class="tradingview-widget-container" style="height:500px;width:100%"><div id="tv_{sel}" style="height:100%"></div><script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script><script type="text/javascript">new TradingView.widget({{ "autosize": true, "symbol": "{sel}", "interval": "D", "theme": "dark", "style": "1", "container_id": "tv_{sel}" }});</script></div>"""
+                    components.html(tv_html, height=510)
+            else:
+                st.error(f"找不到 {sel} 的數據，請確認代碼是否正確。")
 
-elif mode == "⚡ TSLA 戰情室 (Intel)":
-    st.markdown("<h1 style='text-align:center; color:#fff; text-shadow:0 0 20px #E53935;'>⚡ TESLA 戰情室</h1>", unsafe_allow_html=True)
+elif mode == "🚨 TSLA 戰情室":
+    st.markdown("<h1 style='text-align:center; color:#fff; text-shadow:0 0 20px #E53935;'>⚡ TESLA INTELLIGENCE</h1>", unsafe_allow_html=True)
+    
+    # 快捷按鈕
     c1,c2,c3 = st.columns(3)
-    c1.link_button("Google News", "https://www.google.com/search?q=Tesla+stock&tbm=nws", use_container_width=True)
-    c2.link_button("Elon Musk X", "https://twitter.com/elonmusk", use_container_width=True)
-    c3.link_button("TradingView", "https://www.tradingview.com/chart/?symbol=TSLA", use_container_width=True)
+    c1.link_button("📰 Google News", "https://www.google.com/search?q=Tesla+stock&tbm=nws", use_container_width=True)
+    c2.link_button("🐦 Elon Musk X", "https://twitter.com/elonmusk", use_container_width=True)
+    c3.link_button("📈 TradingView Chart", "https://www.tradingview.com/chart/?symbol=TSLA", use_container_width=True)
     st.divider()
     
-    cl, cr = st.columns([1, 2])
+    cl, cr = st.columns([1.2, 2])
     with cl:
         try:
+            # 獲取 TSLA 即時數據
             t = yf.Ticker("TSLA")
             h = t.history(period="1d")
-            raw_close = h['Close'].iloc[-1]
-            raw_open = h['Open'].iloc[0]
-            curr = float(raw_close.iloc[0]) if isinstance(raw_close, pd.Series) else float(raw_close)
-            op = float(raw_open.iloc[0]) if isinstance(raw_open, pd.Series) else float(raw_open)
-            
-            clr = "#00E676" if curr>=op else "#FF1744"
-            st.markdown(f"<div style='text-align:center; background:rgba(0,0,0,0.8); padding:30px; border:1px solid {clr}; border-radius:4px;'><h1 style='color:{clr}; font-size:48px; margin:0; font-family:JetBrains Mono'>${curr:.2f}</h1></div>", unsafe_allow_html=True)
-        except: pass
+            if not h.empty:
+                curr = extract_scalar(h['Close'].iloc[-1])
+                op = extract_scalar(h['Open'].iloc[0])
+                
+                clr = "#00E676" if curr >= op else "#FF1744"
+                pct = ((curr - op) / op) * 100
+                
+                st.markdown(f"""
+                <div style='text-align:center; background:rgba(0,0,0,0.6); padding:30px; border:1px solid {clr}; border-radius:8px; box-shadow:0 0 15px {clr}40;'>
+                    <div style='color:#ccc; font-size:14px; margin-bottom:5px;'>REAL-TIME PRICE</div>
+                    <h1 style='color:{clr}; font-size:56px; margin:0; font-family:JetBrains Mono; line-height:1;'>${curr:.2f}</h1>
+                    <div style='color:{clr}; font-size:18px; margin-top:5px;'>{pct:+.2f}%</div>
+                </div>
+                """, unsafe_allow_html=True)
+        except: 
+            st.error("Data Fetch Error")
+
+        st.write("")
+        # 迷你走勢圖
         components.html("""<div class="tradingview-widget-container"><div class="tradingview-widget-container__widget"></div><script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>{ "symbol": "NASDAQ:TSLA", "width": "100%", "height": "350", "dateRange": "12M", "colorTheme": "dark", "isTransparent": true, "autosize": false, "largeChartUrl": "" }</script></div>""", height=360)
         
     with cr:
-        st.markdown("### 💬 社群情緒")
+        st.markdown("### 💬 華爾街社群情緒 (StockTwits)")
         try:
-            r = requests.get("https://api.stocktwits.com/api/2/streams/symbol/TSLA.json", headers={'User-Agent':'Mozilla/5.0'}, timeout=2)
-            for m in r.json().get('messages', [])[:5]:
-                u = m['user']['username']
-                b = m['body']
-                st.markdown(f"<div style='background:rgba(0,0,0,0.8); padding:12px; margin-bottom:8px; border-radius:4px; border-left:3px solid #E53935; font-family:Noto Sans TC; font-size:13px;'><strong style='color:#E53935'>@{u}</strong><br><span style='color:#ccc'>{b}</span></div>", unsafe_allow_html=True)
-        except: st.info("載入中...")
+            r = requests.get("https://api.stocktwits.com/api/2/streams/symbol/TSLA.json", headers={'User-Agent':'Mozilla/5.0'}, timeout=3)
+            data = r.json()
+            if 'messages' in data:
+                for m in data['messages'][:6]:
+                    u = m['user']['username']
+                    b = m['body']
+                    time_str = m['created_at'].split('T')[1][:5]
+                    sentiment = m.get('entities', {}).get('sentiment', None)
+                    sent_color = "#00E676" if sentiment == "Bullish" else "#FF1744" if sentiment == "Bearish" else "#888"
+                    
+                    st.markdown(f"""
+                    <div style='background:rgba(20,20,20,0.8); padding:15px; margin-bottom:10px; border-radius:6px; border-left:4px solid {sent_color}; font-family:Noto Sans TC;'>
+                        <div style="display:flex; justify-content:space-between; font-size:12px; color:#666; margin-bottom:5px;">
+                            <strong style='color:#E53935'>@{u}</strong>
+                            <span>{time_str}</span>
+                        </div>
+                        <span style='color:#ddd; font-size:14px; line-height:1.4;'>{b}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.info("暫無社群數據")
+        except: 
+            st.info("無法連線至 StockTwits API")
