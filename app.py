@@ -8,150 +8,131 @@ import datetime
 import time
 
 # ==========================================
-# 0. 系統核心配置 (J Law Institutional)
+# 0. 系統核心配置 (Auto-Pilot)
 # ==========================================
-st.set_page_config(page_title="J Law: Institutional Scanner", layout="wide", page_icon="🏦")
+st.set_page_config(page_title="J Law Alpha Hunter", layout="wide", page_icon="🦅")
 
 # 檔案路徑
-PORTFOLIO_FILE = 'quant_portfolio.csv'
-TRADE_LOG_FILE = 'quant_tradelog.csv'
+PORTFOLIO_FILE = 'auto_portfolio.csv'
 
 # ==========================================
-# 1. 華爾街黑金風格 CSS
+# 1. 視覺風格 (Elite Theme)
 # ==========================================
 def inject_css():
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&family=Inter:wght@400;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;700&family=Inter:wght@400;700&display=swap');
         
-        .stApp { background-color: #000000; color: #E0E0E0; font-family: 'Inter', sans-serif; }
-        div[data-testid="stDataFrame"] { border: 1px solid #333; }
-        section[data-testid="stSidebar"] { background-color: #0F0F0F; border-right: 1px solid #222; }
+        .stApp { background-color: #000; color: #fff; font-family: 'Inter', sans-serif; }
+        section[data-testid="stSidebar"] { background-color: #0a0a0a; border-right: 1px solid #222; }
         
-        /* 專業指標卡片 */
-        .metric-card { background: #111; border: 1px solid #333; padding: 15px; border-radius: 4px; }
-        .metric-title { font-size: 11px; color: #888; text-transform: uppercase; font-family: 'Roboto Mono'; }
-        .metric-value { font-size: 20px; font-weight: bold; color: #fff; font-family: 'Roboto Mono'; margin-top: 5px; }
-        .metric-sub { font-size: 11px; margin-top: 5px; }
+        /* 冠軍卡片 */
+        .crown-card {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #D4AF37; /* 金色邊框 */
+            padding: 20px; border-radius: 10px; text-align: center;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.2);
+            margin-bottom: 20px;
+        }
+        .crown-title { color: #D4AF37; font-size: 14px; letter-spacing: 2px; font-weight: bold; text-transform: uppercase; }
+        .crown-symbol { font-size: 48px; font-weight: bold; font-family: 'Oswald'; color: #fff; margin: 10px 0; }
+        .crown-score { background: #D4AF37; color: #000; padding: 2px 10px; border-radius: 4px; font-weight: bold; }
         
-        /* 狀態標籤 */
-        .status-badge { padding: 2px 6px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-        .bull { background: #064E3B; color: #34D399; border: 1px solid #059669; }
-        .bear { background: #450a0a; color: #FCA5A5; border: 1px solid #B91C1C; }
+        /* 推薦等級標籤 */
+        .rank-diamond { background: #06b6d4; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; border: 1px solid #22d3ee; }
+        .rank-gold { background: #eab308; color: #000; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .rank-silver { background: #4b5563; color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 12px; }
+        
+        /* 交易建議框 */
+        .action-box {
+            background: #111; border-left: 5px solid #00E676; padding: 15px; margin-top: 10px;
+        }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 數據庫與交易系統
+# 2. 交易執行 (自動計算倉位)
 # ==========================================
 def init_db():
     if not os.path.exists(PORTFOLIO_FILE):
-        pd.DataFrame(columns=['Date', 'Symbol', 'Entry', 'Qty', 'Stop', 'Target', 'Status']).to_csv(PORTFOLIO_FILE, index=False)
+        pd.DataFrame(columns=['Date', 'Symbol', 'Entry', 'Qty', 'Stop', 'Target']).to_csv(PORTFOLIO_FILE, index=False)
 
-def execute_order(symbol, entry, stop, target, capital_allocation):
+def execute_trade(symbol, entry, stop, target, capital):
     init_db()
     df = pd.read_csv(PORTFOLIO_FILE)
-    if not df.empty and symbol in df[df['Status']=='OPEN']['Symbol'].values:
-        return False, "⚠️ 錯誤：倉位已存在"
+    if symbol in df['Symbol'].values: return False, "⚠️ 已經持有此股票"
     
-    qty = int(capital_allocation / entry)
-    if qty < 1: return False, "⚠️ 資金不足以購買 1 股"
-    
+    qty = int(capital / entry)
     new_trade = {
         'Date': datetime.date.today(), 'Symbol': symbol,
-        'Entry': float(entry), 'Qty': int(qty),
-        'Stop': float(stop), 'Target': float(target), 'Status': 'OPEN'
+        'Entry': entry, 'Qty': qty, 'Stop': stop, 'Target': target
     }
     pd.concat([df, pd.DataFrame([new_trade])], ignore_index=True).to_csv(PORTFOLIO_FILE, index=False)
-    return True, f"✅ 買單成交: {symbol} | {qty}股 @ ${entry:.2f}"
+    return True, f"✅ 自動買入 {symbol}: {qty}股"
 
 # ==========================================
-# 3. 數據源與穩健下載 (Robust Fetch)
+# 3. 數據源：鎖定最強流動性 (Top 150)
 # ==========================================
 @st.cache_data
-def get_full_universe():
-    # S&P 500 + Nasdaq 100 重點股 (去除重複)
-    top_stocks = [
-        "NVDA", "TSLA", "AAPL", "MSFT", "AMZN", "GOOGL", "META", "AVGO", "COST", "NFLX",
-        "AMD", "PEP", "LIN", "CSCO", "TMUS", "INTU", "QCOM", "TXN", "CMCSA", "AMGN",
-        "HON", "INTC", "ISRG", "BKNG", "AMAT", "SBUX", "VRTX", "GILD", "MDLZ", "ADP",
-        "LRCX", "REGN", "ADI", "PANW", "MU", "KLAC", "SNPS", "PDD", "CDNS", "MELI",
-        "MNST", "CSX", "MAR", "PYPL", "ORLY", "CTAS", "ROP", "ASML", "NXPI", "LULU",
-        "FTNT", "ADSK", "PCAR", "DXCM", "PAYX", "MCHP", "KDP", "CHTR", "MRVL", "IDXX",
-        "ABNB", "AEP", "SGEN", "ODFL", "AZN", "CPRT", "ROST", "BKR", "EA", "FAST",
-        "EXC", "XEL", "VRSK", "CSGP", "CTSH", "GEHC", "BIIB", "WBD", "GFS", "DLTR",
-        "ON", "CDW", "ANSS", "TTD", "CEG", "ALGN", "WBA", "ILMN", "ZM", "LCID",
-        "PLTR", "COIN", "MSTR", "SMCI", "ARM", "APP", "HOOD", "AFRM", "UPST", "JPM", 
-        "V", "LLY", "WMT", "XOM", "UNH", "MA", "HD", "PG", "JNJ", "ABBV", "MRK", "CVX", 
-        "CRM", "BAC", "KO", "TMO", "ACN", "MCD", "DIS", "ABT", "VZ", "IBM", "PFE", "UBER", 
-        "CAT", "SPGI", "GE", "PM", "UNP", "GS", "LOW", "COP", "RTX", "T", "AXP", "NEE", 
-        "ELV", "ETN", "BLK", "SYK", "PGR", "TJX", "MS", "C", "BA", "MMC", "CB", "GILD", 
-        "AMT", "LMT", "CI", "CVS", "SCHW", "SNOW", "SQ", "DKNG", "RIVN", "CELH", "ELF", "ONON", "MARA", "CLSK", "RIOT"
+def get_market_leaders():
+    # 這是 S&P 500 + Nasdaq 100 中流動性最好、波動最大的 120 隻股票
+    # 這是為了保證 "交易價值" (有波動才有錢賺)
+    return [
+        "NVDA", "TSLA", "MSTR", "COIN", "PLTR", "SMCI", "AMD", "AAPL", "MSFT", "AMZN", 
+        "GOOGL", "META", "AVGO", "CRWD", "UBER", "ABNB", "DKNG", "MARA", "CLSK", "RIOT", 
+        "SOFI", "AI", "ARM", "MU", "QCOM", "TSM", "HOOD", "NET", "PANW", "SNOW", "ONON", 
+        "ELF", "CELH", "APP", "CVNA", "UPST", "JPM", "V", "LLY", "NFLX", "COST", "PEP",
+        "ADBE", "INTU", "TXN", "AMGN", "ISRG", "BKNG", "LRCX", "REGN", "ADI", "KLAC",
+        "SNPS", "CDNS", "MELI", "MNST", "ORLY", "ASML", "LULU", "FTNT", "PCAR", "DXCM",
+        "MRVL", "IDXX", "ODFL", "AZN", "ROST", "EA", "FAST", "EXC", "XEL", "VRSK", "CSGP",
+        "GEHC", "GFS", "ON", "TTD", "CEG", "ZM", "ENPH", "JD", "TEAM", "ZS", "DDOG", "SQ",
+        "RIVN", "LCID", "AFRM", "GILD", "CVS", "MRK", "ABBV", "JNJ", "PG", "HD", "MA", "UNH",
+        "XOM", "CVX", "BAC", "WMT", "KO", "MCD", "DIS", "CAT", "GE", "GS", "BA", "RTX"
     ]
-    return sorted(list(set(top_stocks)))
 
-# 這裡不緩存，避免下載失敗後卡死
-def fetch_data_robust(tickers):
-    data_map = {}
-    
-    # 分批下載，每批 50 隻，防止 Yahoo 封鎖
+def fetch_data_auto(tickers):
+    # 分批下載，確保穩定
+    data_frames = []
     chunk_size = 50
     chunks = [tickers[i:i + chunk_size] for i in range(0, len(tickers), chunk_size)]
     
-    # 下載 Benchmark (SPY, QQQ)
+    # 基準
     try:
         bench = yf.download(['SPY', 'QQQ'], period="1y", group_by='ticker', threads=True, progress=False)
-        if bench.empty: return None, None, None
     except: return None, None, None
 
-    # 合併數據
-    all_data = pd.DataFrame()
     for chunk in chunks:
         try:
-            temp = yf.download(chunk, period="1y", group_by='ticker', threads=True, progress=False)
-            if not temp.empty:
-                if all_data.empty: all_data = temp
-                else: all_data = pd.concat([all_data, temp], axis=1)
+            d = yf.download(chunk, period="1y", group_by='ticker', threads=True, progress=False)
+            if not d.empty: data_frames.append(d)
         except: pass
     
-    return all_data, bench['SPY'], bench['QQQ']
+    if not data_frames: return None, None, None
+    return pd.concat(data_frames, axis=1), bench['SPY'], bench['QQQ']
 
 # ==========================================
-# 4. J Law 專業分析核心
+# 4. J Law Alpha 算法 (自動評級系統)
 # ==========================================
-def analyze_stock_safe(ticker, df_stock, df_spy, df_qqq):
+def analyze_opportunity(ticker, df_stock, df_spy, df_qqq):
     try:
-        # 數據檢查
-        if df_stock is None or len(df_stock) < 200: return None
-        if 'Close' not in df_stock.columns: return None # 防止空數據
+        if len(df_stock) < 200: return None
         
         close = df_stock['Close']
-        if close.isnull().all(): return None # 防止全 NaN
-        
-        high = df_stock['High']
-        low = df_stock['Low']
-        vol = df_stock['Volume']
         curr = float(close.iloc[-1])
+        vol = df_stock['Volume']
         
-        # --- 1. J Law RS Rating ---
-        def get_perf(s, window): 
-            try: return (s.iloc[-1]/s.iloc[-window]) - 1
-            except: return 0
+        # --- 1. 計算 RS (相對強度) ---
+        # 自動選擇基準：如果是科技股跟 QQQ 比，其他跟 SPY 比 (這裡簡化為取兩者較高者)
+        def get_perf(s): return (s.iloc[-1]/s.iloc[-63]) - 1
+        stock_perf = get_perf(close)
+        spy_perf = get_perf(df_spy['Close'])
+        qqq_perf = get_perf(df_qqq['Close'])
         
-        stock_score = get_perf(close, 63)*0.4 + get_perf(close, 126)*0.2 + get_perf(close, 252)*0.4
-        spy_score = get_perf(df_spy['Close'], 63)*0.4 + get_perf(df_spy['Close'], 126)*0.2 + get_perf(df_spy['Close'], 252)*0.4
-        
-        rs_rating = 50 + (stock_score - spy_score) * 100 
+        benchmark = max(spy_perf, qqq_perf)
+        rs_rating = 50 + (stock_perf - benchmark) * 100
         rs_rating = min(99, max(1, int(rs_rating)))
         
-        # --- 2. Stage Analysis ---
-        ma50 = float(close.rolling(50).mean().iloc[-1])
-        ma200 = float(close.rolling(200).mean().iloc[-1])
-        stage = "弱勢 (Stage 4)"
-        if curr > ma200: stage = "蓄勢 (Stage 1)"
-        if curr > ma50 and ma50 > ma200: stage = "強勢 (Stage 2)"
-        
-        # --- 3. DRSI (Stoch RSI) ---
+        # --- 2. 計算 DRSI (Stoch RSI) ---
         delta = close.diff()
         gain = (delta.where(delta > 0, 0)).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
@@ -162,204 +143,182 @@ def analyze_stock_safe(ticker, df_stock, df_spy, df_qqq):
         d = k.rolling(3).mean()
         k_val, d_val = float(k.iloc[-1]), float(d.iloc[-1])
         
-        # --- 4. RVOL ---
-        vol_avg = float(vol.rolling(50).mean().iloc[-1])
-        rvol = float(vol.iloc[-1]) / vol_avg if vol_avg > 0 else 0
-        
-        # --- 5. 評分 ---
+        # --- 3. 自動分級算法 (Auto-Ranking) ---
         score = 0
-        if "Stage 2" in stage: score += 30
-        if rs_rating > 70: score += 20
-        if k_val > d_val: score += 20 # 金叉
-        if rvol > 1.0: score += 10
-        if curr > ma50: score += 20
+        reasons = []
+        rank_tier = "Silver" # 預設
         
-        # --- 6. 交易點位 ---
-        atr = float((high - low).rolling(14).mean().iloc[-1])
+        # 條件 A: RS 必須強
+        if rs_rating > 80: 
+            score += 30
+            reasons.append("RS 強度 > 80 (領頭羊)")
+        elif rs_rating > 60:
+            score += 15
+        
+        # 條件 B: DRSI 金叉 (進場訊號)
+        if k_val > d_val: 
+            score += 30
+            reasons.append("DRSI 黃金交叉 (買點)")
+        elif k_val < 20: # 超賣
+            score += 10
+            reasons.append("DRSI 超賣 (準備反彈)")
+            
+        # 條件 C: 趨勢 (Stage 2)
+        ma50 = float(close.rolling(50).mean().iloc[-1])
+        ma200 = float(close.rolling(200).mean().iloc[-1])
+        if curr > ma50 and ma50 > ma200: 
+            score += 20
+            reasons.append("Stage 2 強力多頭")
+            
+        # 條件 D: 量能
+        vol_avg = float(vol.rolling(50).mean().iloc[-1])
+        rvol = float(vol.iloc[-1]) / vol_avg
+        if rvol > 1.2: 
+            score += 20
+            reasons.append(f"爆量 ({rvol:.1f}x)")
+            
+        # 最終定級
+        if score >= 80: rank_tier = "Diamond" # 鑽石級 (Alpha)
+        elif score >= 60: rank_tier = "Gold"    # 黃金級
+        
+        # 計算交易點位
+        atr = float((df_stock['High'] - df_stock['Low']).rolling(14).mean().iloc[-1])
         entry = curr
         stop = curr - (2 * atr)
         target = entry + (3 * (entry - stop))
         
         return {
             "Symbol": ticker,
-            "Price": curr,
-            "Change%": ((curr - float(close.iloc[-2]))/float(close.iloc[-2]))*100,
             "Score": score,
-            "RS_Rating": rs_rating,
-            "Stage": stage,
-            "DRSI_Signal": "金叉 (Bull)" if k_val > d_val else "中性",
-            "RVOL": round(rvol, 1),
-            "Entry": round(entry, 2),
-            "Stop": round(stop, 2),
-            "Target": round(target, 2),
-            "R_Ratio": round((target-entry)/(entry-stop), 1) if (entry-stop)!=0 else 0
+            "Rank": rank_tier,
+            "RS": rs_rating,
+            "Price": curr,
+            "Change": ((curr - float(close.iloc[-2]))/float(close.iloc[-2]))*100,
+            "Entry": entry, "Stop": stop, "Target": target,
+            "Reason": " + ".join(reasons)
         }
-    except Exception as e:
-        return None
+    except: return None
 
 # ==========================================
-# 5. 主程式介面
+# 5. 主介面 (Auto-Pilot)
 # ==========================================
 inject_css()
 init_db()
 
 with st.sidebar:
-    st.markdown("## 🏦 J LAW INSTITUTIONAL")
-    st.caption("Stable Version (v2.1)")
-    page = st.radio("導航", ["⚡ 市場掃描儀", "💼 投資組合"])
-    st.divider()
-    capital_input = st.number_input("單筆交易資金 ($)", value=10000, step=1000)
+    st.markdown("## 🦅 J LAW ALPHA HUNTER")
+    st.caption("Auto-Pilot Mode")
+    capital = st.number_input("每筆交易本金 ($)", value=10000)
 
-if page == "⚡ 市場掃描儀":
-    st.title("⚡ 全市場深度掃描 (Stable)")
-    
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        run_scan = st.button("🚀 啟動安全掃描", use_container_width=True)
-    
-    if run_scan:
-        st.session_state['scan_data'] = pd.DataFrame() # 清空舊數據
-        progress_text = st.empty()
-        bar = st.progress(0)
-        
-        tickers = get_full_universe()
-        progress_text.text(f"正在連接交易所，下載 {len(tickers)} 隻股票數據 (分批下載中)...")
-        
-        # 執行穩健下載
-        all_stock_data, spy_data, qqq_data = fetch_data_robust(tickers)
-        
-        if all_stock_data is None or all_stock_data.empty:
-            progress_text.error("無法連接數據源 (Yahoo API Timeout)。請稍後再試。")
-            bar.empty()
-        else:
-            results = []
-            progress_text.text("正在執行 J Law 量化運算...")
-            
-            total_tickers = len(tickers)
-            for i, t in enumerate(tickers):
-                try:
-                    # 處理 MultiIndex 列名
-                    if isinstance(all_stock_data.columns, pd.MultiIndex):
-                        if t in all_stock_data.columns.levels[0]:
-                            df_t = all_stock_data[t].dropna()
-                            res = analyze_stock_safe(t, df_t, spy_data, qqq_data)
-                            if res: results.append(res)
-                except: pass
-                
-                if i % 5 == 0: bar.progress((i+1)/total_tickers)
-            
-            bar.empty()
-            
-            # --- 關鍵修復：處理空結果 ---
-            if not results:
-                progress_text.warning("掃描完成，但沒有股票符合數據標準 (或市場數據異常)。")
-                # 建立空 DataFrame 但帶有正確欄位，防止 KeyError
-                cols = ['Symbol', 'Price', 'Change%', 'Score', 'RS_Rating', 'Stage', 'DRSI_Signal', 'RVOL', 'Entry', 'Stop', 'Target', 'R_Ratio', 'Setup']
-                st.session_state['scan_data'] = pd.DataFrame(columns=cols)
-            else:
-                progress_text.success(f"分析完成！共處理 {len(results)} 隻標的。")
-                st.session_state['scan_data'] = pd.DataFrame(results)
+st.title("🦅 全自動機會搜尋器 (Auto-Pilot)")
+st.markdown("系統將自動掃描市場，並按 **「交易價值 (Opportunity Value)」** 排序。你不需要設置任何參數。")
 
-    # 結果展示邏輯 (加上防呆)
-    if 'scan_data' in st.session_state:
-        df = st.session_state['scan_data']
-        
-        if df.empty:
-            st.info("暫無數據。請點擊上方按鈕開始掃描。")
-        else:
-            # 1. 篩選器
-            c_filter1, c_filter2 = st.columns(2)
-            with c_filter1:
-                min_score = st.slider("最低技術評分 (Score)", 0, 100, 50) # 降低預設值，確保有結果
-            with c_filter2:
-                min_rs = st.slider("最低 RS 強度 (RS Rating)", 0, 99, 50)
-                
-            # 安全篩選
+start = st.button("🚀 啟動 AI 獵人 (Start Hunter)", use_container_width=True)
+
+if start:
+    status = st.empty()
+    bar = st.progress(0)
+    
+    status.info("1. 正在鎖定 120 隻市場最熱門股票...")
+    tickers = get_market_leaders()
+    
+    status.info("2. 下載數據並進行 J Law 策略運算...")
+    stock_data, spy, qqq = fetch_data_auto(tickers)
+    
+    results = []
+    if stock_data is not None:
+        for i, t in enumerate(tickers):
             try:
-                filtered_df = df[(df['Score'] >= min_score) & (df['RS_Rating'] >= min_rs)].sort_values('Score', ascending=False)
-            except KeyError:
-                st.error("數據格式錯誤，請重新掃描。")
-                st.stop()
-            
-            st.markdown(f"### 📋 篩選結果 ({len(filtered_df)} 隻)")
-            
-            # 2. 交互式表格
-            st.dataframe(
-                filtered_df[['Symbol', 'Price', 'Change%', 'Score', 'RS_Rating', 'Stage', 'DRSI_Signal', 'RVOL']],
-                use_container_width=True,
-                column_config={
-                    "Score": st.column_config.ProgressColumn("Tech Score", min_value=0, max_value=100, format="%d"),
-                    "RS_Rating": st.column_config.NumberColumn("RS Strength", help="Relative Strength (0-99)"),
-                    "Change%": st.column_config.NumberColumn("Change%", format="%.2f%%"),
-                },
-                height=300
-            )
-            
-            # 3. 深度分析面板
-            if not filtered_df.empty:
-                st.markdown("---")
-                st.markdown("### 🔍 交易面板")
-                selected_ticker = st.selectbox("選擇要交易的股票:", filtered_df['Symbol'].tolist())
-                
-                if selected_ticker:
-                    row = filtered_df[filtered_df['Symbol'] == selected_ticker].iloc[0]
-                    
-                    # 頂部資訊
-                    st.markdown(f"""
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:#111; padding:20px; border:1px solid #333;">
-                        <div>
-                            <h1 style="margin:0; color:#fff;">{row['Symbol']} <span style="font-size:18px; color:{'#34D399' if row['Change%']>0 else '#FCA5A5'}">({row['Change%']:.2f}%)</span></h1>
-                            <span style="color:#888;">{row['Stage']} | RS Rating: <b style="color:#fff">{row['RS_Rating']}</b></span>
-                        </div>
-                        <div style="text-align:right;">
-                            <div style="font-size:12px; color:#888;">J LAW SCORE</div>
-                            <div style="font-size:42px; font-weight:bold; color:{'#34D399' if row['Score']>80 else '#FBBF24'}">{row['Score']}</div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-                    # 交易執行區
-                    c1, c2, c3 = st.columns(3)
-                    c1.markdown(f"<div class='metric-card'><div class='metric-title'>DRSI SIGNAL</div><div class='metric-value' style='color:{'#34D399' if 'Bull' in row['DRSI_Signal'] else '#fff'}'>{row['DRSI_Signal']}</div></div>", unsafe_allow_html=True)
-                    c2.markdown(f"<div class='metric-card'><div class='metric-title'>R:R RATIO</div><div class='metric-value'>1 : {row['R_Ratio']}</div></div>", unsafe_allow_html=True)
-                    c3.markdown(f"<div class='metric-card'><div class='metric-title'>RVOL</div><div class='metric-value'>{row['RVOL']}x</div></div>", unsafe_allow_html=True)
-                    
-                    st.markdown("#### ⚡ 交易執行 (Execution)")
-                    ec1, ec2, ec3 = st.columns(3)
-                    ec1.info(f"🟢 **Entry:** ${row['Entry']}")
-                    ec2.error(f"🔴 **Stop:** ${row['Stop']}")
-                    ec3.success(f"🎯 **Target:** ${row['Target']}")
-                    
-                    if st.button(f"立即下單買入 {row['Symbol']} (${capital_input})", use_container_width=True):
-                        success, msg = execute_order(row['Symbol'], row['Entry'], row['Stop'], row['Target'], capital_input)
-                        if success: st.success(msg)
-                        else: st.error(msg)
-                    
-                    # 圖表
-                    st.markdown("#### 📈 技術圖表")
-                    components.html(f"""
-                    <div class="tradingview-widget-container" style="height:500px;width:100%">
-                      <div id="tv_{row['Symbol']}" style="height:100%"></div>
-                      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-                      <script type="text/javascript">
-                      new TradingView.widget({{
-                        "autosize": true, "symbol": "{row['Symbol']}", "interval": "D", "timezone": "Exchange", "theme": "dark", "style": "1",
-                        "toolbar_bg": "#000", "enable_publishing": false, 
-                        "studies": ["StochasticRSI@tv-basicstudies", "MASimple@tv-basicstudies"],
-                        "container_id": "tv_{row['Symbol']}"
-                      }});
-                      </script>
-                    </div>
-                    """, height=500)
-
-elif page == "💼 投資組合":
-    st.title("💼 模擬資產管理")
+                df_t = stock_data[t] if isinstance(stock_data.columns, pd.MultiIndex) else stock_data
+                res = analyze_opportunity(t, df_t, spy, qqq)
+                if res: results.append(res)
+            except: pass
+            if i % 10 == 0: bar.progress((i+1)/len(tickers))
     
-    if os.path.exists(PORTFOLIO_FILE):
-        df = pd.read_csv(PORTFOLIO_FILE)
-        if not df.empty:
-            st.dataframe(df, use_container_width=True)
-        else:
-            st.info("目前沒有持倉。")
+    bar.empty()
+    
+    if not results:
+        status.error("市場數據連接失敗，請重試。")
     else:
-        st.info("數據庫初始化中...")
+        # 自動排序：分數高 -> RS 高 -> 代碼
+        df = pd.DataFrame(results).sort_values(['Score', 'RS'], ascending=[False, False])
+        st.session_state['auto_results'] = df
+        status.success(f"掃描完成！已自動為你找到 {len(df)} 個潛在機會，並按價值排序。")
+
+# 結果展示區 (自動過濾模式)
+if 'auto_results' in st.session_state:
+    df = st.session_state['auto_results']
+    
+    # 1. 提取最頂級的股票 (Diamond & Gold)
+    top_picks = df[df['Rank'].isin(['Diamond', 'Gold'])]
+    if top_picks.empty:
+        top_picks = df.head(5) # 如果沒有頂級，就顯示前5名
+        st.warning("今日市場較弱，沒有發現「鑽石級」機會。以下是目前評分最高的股票：")
+    
+    st.markdown("### 🔥 最具交易價值 (Top Picks)")
+    
+    # 2. 自動展示前 3 名 (卡片式)
+    for i in range(min(3, len(top_picks))):
+        row = top_picks.iloc[i]
+        
+        # 決定顏色
+        rank_class = "rank-diamond" if row['Rank'] == "Diamond" else "rank-gold"
+        rank_color = "#06b6d4" if row['Rank'] == "Diamond" else "#eab308"
+        
+        # 佈局
+        c_card, c_info = st.columns([1, 2])
+        
+        with c_card:
+            # 冠軍卡片設計
+            st.markdown(f"""
+            <div class="crown-card" style="border-color:{rank_color}">
+                <div class="crown-title">RANK #{i+1} OPPORTUNITY</div>
+                <div class="crown-symbol">{row['Symbol']}</div>
+                <span class="{rank_class}">{row['Rank']} TIER</span>
+                <div style="margin-top:10px; font-size:24px; color:{'#00E676' if row['Change']>0 else '#FF1744'}">{row['Change']:.2f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with c_info:
+            st.markdown(f"#### 📊 分析報告 ({row['Symbol']})")
+            st.write(f"**入選理由:** {row['Reason']}")
+            st.write(f"**J Law Score:** {row['Score']} | **RS 強度:** {row['RS']}")
+            
+            # 交易建議框
+            st.markdown(f"""
+            <div class="action-box">
+                <div style="display:flex; justify-content:space-between;">
+                    <span>🔵 <b>買入 Entry:</b> ${row['Entry']:.2f}</span>
+                    <span>🔴 <b>止損 Stop:</b> ${row['Stop']:.2f}</span>
+                    <span>🟢 <b>目標 Target:</b> ${row['Target']:.2f}</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # 一鍵買入
+            if st.button(f"⚡ 自動下單 {row['Symbol']} (${capital})", key=f"btn_{row['Symbol']}", use_container_width=True):
+                success, msg = execute_trade(row['Symbol'], row['Entry'], row['Stop'], row['Target'], capital)
+                if success: st.success(msg)
+                else: st.warning(msg)
+        
+        st.divider()
+
+    # 3. 查看全部列表
+    with st.expander("📋 查看完整排行榜 (All Opportunities)"):
+        st.dataframe(
+            df[['Symbol', 'Rank', 'Score', 'RS', 'Price', 'Change', 'Reason']],
+            use_container_width=True,
+            column_config={
+                "Score": st.column_config.ProgressColumn("Score", min_value=0, max_value=100, format="%d"),
+            }
+        )
+
+# 投資組合區
+st.markdown("---")
+st.markdown("### 💼 我的持倉")
+if os.path.exists(PORTFOLIO_FILE):
+    port = pd.read_csv(PORTFOLIO_FILE)
+    if not port.empty:
+        st.dataframe(port, use_container_width=True)
+    else:
+        st.info("暫無持倉。請點擊上方「自動下單」按鈕建立倉位。")
