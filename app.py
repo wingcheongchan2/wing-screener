@@ -151,7 +151,6 @@ DEFAULT_UNIVERSE = list(dict.fromkeys(CORE_PORTFOLIO_SYMBOLS + [
     "LLY", "ISRG", "COST", "NFLX", "UBER", "ABNB", "HOOD", "SOFI", "DKNG", "CELH", "ONON"
 ]))
 
-# 統一表格配置字典 (避免重複定義與打字報錯)
 GRID_COLUMN_CONFIG = {
     "Symbol": st.column_config.TextColumn("標的代碼"),
     "Price": st.column_config.NumberColumn("最新收市 ($)", format="$%.2f"),
@@ -189,7 +188,8 @@ def fetch_all_data(tickers):
                 if sym in raw_data.columns.levels[0]: df = raw_data[sym].copy()
                 elif sym in raw_data.columns.levels: df = raw_data.xs(sym, axis=1, level=1).copy()
                 else: return None
-            else: df = raw_data.copy()
+            else:
+                df = raw_data.copy()
             df = df.dropna(subset=['Close'])
             return df if len(df) >= 120 else None
         except Exception:
@@ -455,8 +455,8 @@ if df_results.empty:
     st.error("暫未獲取到市場數據，請檢查網絡連線或點擊側邊欄重新掃描。")
     st.stop()
 
-# 醒目即時警報橫幅
-perfect_matches = df_results[df_results['All_Rules_Met'] == True]
+# 醒目即時警報橫幅 (防禦性檢查欄位)
+perfect_matches = df_results[df_results['All_Rules_Met'] == True] if ('All_Rules_Met' in df_results.columns) else pd.DataFrame()
 if not perfect_matches.empty:
     alert_symbols = ", ".join(perfect_matches['Symbol'].tolist())
     st.markdown(f"""
@@ -680,7 +680,7 @@ elif nav_selection == "02 // 🔍 7 維技術診斷與圖表 (Deep Technical Rad
             ("4. DRSI 動能買點", "金叉" in stock_row['DRSI_Status'], f"DRSI 處於「{stock_row['DRSI_Status']}」，順勢起爆點成立。"),
             ("5. 20 EMA 關鍵支撐", abs(stock_row['Dist_20EMA']) <= 3.0, f"距離 20 EMA 僅 {stock_row['Dist_20EMA']}%，處於黃金回踩或起跳買區。"),
             ("6. 量能蓄勢與突破", stock_row['RVOL'] >= 1.2 or stock_row['RVOL'] < 0.8, f"相對量比 (RVOL) 為 {stock_row['RVOL']}x，量縮蓄勢或放量突破。"),
-            ("7. 結構性買點設定", True, f"判定型態為「{stock_row['Setup_Type']}」，規劃買入價 ${stock_row['Entry']:.2f}，距現價 {stock_row['Entry_Diff']}}%。")
+            ("7. 結構性買點設定", True, f"判定型態為「{stock_row['Setup_Type']}」，規劃買入價 ${stock_row['Entry']:.2f}，距現價 {stock_row['Entry_Diff']}%。")
         ]
         for title, passed, desc in checklist:
             s_icon = "✅" if passed else "⚠️"
