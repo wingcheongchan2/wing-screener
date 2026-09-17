@@ -17,7 +17,7 @@ st.set_page_config(
 )
 
 # ==========================================
-# 1. Tesla 奢華黑金賽博 UI 樣式系統 (Tesla Cyber UI)
+# 1. Tesla 旗艦級科技美學主題 (Tesla Cyber UI)
 # ==========================================
 def inject_tesla_theme():
     tesla_bg = "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=2000&q=80"
@@ -25,33 +25,29 @@ def inject_tesla_theme():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
         
-        /* 全局背景：Tesla 夜幕旗艦車頭光暈 */
         .stApp {{
             background: linear-gradient(180deg, rgba(6, 9, 14, 0.92) 0%, rgba(9, 12, 18, 0.98) 100%),
                         url('{tesla_bg}') no-repeat center center fixed;
             background-size: cover;
             color: #E2E8F0;
-            font-family: 'Inter', -apple-system, sans-serif;
+            font-family: 'Inter', sans-serif;
         }}
         
-        /* 側邊欄磨砂黑科技感 */
         section[data-testid="stSidebar"] {{
             background: rgba(10, 14, 23, 0.96) !important;
             backdrop-filter: blur(24px);
             border-right: 1px solid rgba(255, 255, 255, 0.08);
         }}
         
-        /* Tesla 實體車機質感按鈕 */
         div.stButton > button:first-child {{
             background: linear-gradient(135deg, #202736 0%, #0e1219 100%);
             color: #FFFFFF;
-            border: 1px solid #E82127; /* Tesla 經典火紅 */
+            border: 1px solid #E82127;
             border-radius: 4px;
             padding: 10px 24px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 13px;
             font-weight: 700;
-            text-transform: uppercase;
             letter-spacing: 1.5px;
             box-shadow: 0 4px 15px rgba(232, 33, 39, 0.25);
             transition: all 0.3s ease;
@@ -61,11 +57,10 @@ def inject_tesla_theme():
             background: #E82127;
             color: #FFFFFF;
             border-color: #FF4D4D;
-            box-shadow: 0 0 25px rgba(232, 33, 39, 0.7), 0 0 10px rgba(232, 33, 39, 0.9);
+            box-shadow: 0 0 25px rgba(232, 33, 39, 0.7);
             transform: translateY(-2px);
         }}
 
-        /* 磨砂黑金屬玻璃卡片 */
         .cyber-card {{
             background: rgba(18, 24, 38, 0.80);
             backdrop-filter: blur(16px);
@@ -81,7 +76,6 @@ def inject_tesla_theme():
             box-shadow: 0 10px 32px rgba(232, 33, 39, 0.2);
         }}
         
-        /* 標籤微光設計 */
         .badge {{
             display: inline-block;
             padding: 3px 8px;
@@ -100,7 +94,6 @@ def inject_tesla_theme():
         .badge-cyan {{ background: rgba(14, 165, 233, 0.2); color: #38BDF8; border: 1px solid #0284C7; }}
         .badge-tesla {{ background: rgba(232, 33, 39, 0.25); color: #FF6B6B; border: 1px solid #E82127; }}
 
-        /* 模組光條標題 */
         .section-header {{
             background: rgba(15, 23, 42, 0.88);
             border-left: 5px solid #E82127;
@@ -110,7 +103,6 @@ def inject_tesla_theme():
             backdrop-filter: blur(12px);
         }}
         
-        /* 執行面板 */
         .action-box {{
             background: rgba(10, 15, 26, 0.94);
             border: 1px solid rgba(232, 33, 39, 0.35);
@@ -119,7 +111,6 @@ def inject_tesla_theme():
             font-family: 'JetBrains Mono', monospace;
         }}
         
-        /* 頂部 Cyber 儀表橫幅 */
         .tesla-banner {{
             display: flex;
             align-items: center;
@@ -132,7 +123,6 @@ def inject_tesla_theme():
             backdrop-filter: blur(16px);
         }}
 
-        /* 呼吸燈動畫 */
         @keyframes pulse-red {{
             0% {{ box-shadow: 0 0 0 0 rgba(232, 33, 39, 0.7); }}
             70% {{ box-shadow: 0 0 0 10px rgba(232, 33, 39, 0); }}
@@ -150,7 +140,7 @@ def inject_tesla_theme():
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 標的池定義 (核心自選標的對齊每日任務)
+# 2. 核心標的池與統一表格配置
 # ==========================================
 CORE_PORTFOLIO_SYMBOLS = ["TSLA", "AAOI", "NVDA", "MU", "BE", "NBIS", "DDOG"]
 
@@ -160,6 +150,24 @@ DEFAULT_UNIVERSE = list(dict.fromkeys(CORE_PORTFOLIO_SYMBOLS + [
     "NOW", "SHOP", "APP", "CVNA", "UPST", "TTD", "SE", "MELI", "CEG", "VST", "GE", "CAT", 
     "LLY", "ISRG", "COST", "NFLX", "UBER", "ABNB", "HOOD", "SOFI", "DKNG", "CELH", "ONON"
 ]))
+
+# 統一表格配置字典 (避免重複定義與打字報錯)
+GRID_COLUMN_CONFIG = {
+    "Symbol": st.column_config.TextColumn("標的代碼"),
+    "Price": st.column_config.NumberColumn("最新收市 ($)", format="$%.2f"),
+    "Change": st.column_config.NumberColumn("今日漲跌 (%)", format="%.2f%%"),
+    "Score": st.column_config.ProgressColumn("J Law 評分", min_value=0, max_value=100, format="%d"),
+    "RS": st.column_config.ProgressColumn("RS 強度", min_value=1, max_value=99, format="%d"),
+    "Setup_Type": st.column_config.TextColumn("戰術型態"),
+    "Entry": st.column_config.NumberColumn("結構買入價 ($)", format="$%.2f"),
+    "Entry_Diff": st.column_config.NumberColumn("現價距買點 (%)", format="%.2f%%"),
+    "Stop": st.column_config.NumberColumn("防守止損 ($)", format="$%.2f"),
+    "Stop_Pct": st.column_config.NumberColumn("止損幅度 (%)", format="%.2f%%"),
+    "Target_2R": st.column_config.NumberColumn("第一目標 (2R)", format="$%.2f"),
+    "Target_3R": st.column_config.NumberColumn("第二目標 (3R)", format="$%.2f"),
+    "RSI": st.column_config.NumberColumn("RSI (14)", format="%.1f"),
+    "RVOL": st.column_config.NumberColumn("量比 RVOL", format="%.2fx")
+}
 
 # ==========================================
 # 3. 數據獲取引擎
@@ -227,7 +235,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             if dist_h52 >= -25.0 and dist_l52 >= 25.0:
                 score += 5
                 is_stage2 = True
-                reasons.append("Stage 2 完美多頭範式 (均線向上)")
+                reasons.append("Stage 2 完美多頭範式")
         elif curr_price > sma50:
             score += 8
             if dist_h52 >= -20.0: reasons.append("50SMA 上方強勢整理")
@@ -308,13 +316,13 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             reasons.append(f"爆量突破 (RVOL {rvol:.1f}x)")
         elif rvol < 0.75:
             score += 7
-            reasons.append("量能乾涸 (VDU 洗盤完成)")
+            reasons.append("量能乾涸 (VDU)")
         else: score += 4
 
         total_score = int(np.clip(score, 0, 100))
         rank = "Diamond" if (total_score >= 80 and is_stage2) else ("Gold" if total_score >= 65 else ("Silver" if total_score >= 50 else "Bronze"))
 
-        # 7. J Law 結構性定價計算 (非盲目現價買！)
+        # 7. J Law 結構性定價計算
         recent_10d_high = float(h.iloc[-10:].max())
         recent_10d_low = float(l.iloc[-10:].min())
         
@@ -371,7 +379,6 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
 # ==========================================
 inject_tesla_theme()
 
-# 左側極簡 Cyber 側邊欄
 with st.sidebar:
     st.markdown("## ⚡ TESLA CYBER")
     st.caption("Autonomous Swing Trading Desk")
@@ -448,7 +455,7 @@ if df_results.empty:
     st.error("暫未獲取到市場數據，請檢查網絡連線或點擊側邊欄重新掃描。")
     st.stop()
 
-# 醒目即時警報橫幅 (一發現符合所有規則的股票就警報)
+# 醒目即時警報橫幅
 perfect_matches = df_results[df_results['All_Rules_Met'] == True]
 if not perfect_matches.empty:
     alert_symbols = ", ".join(perfect_matches['Symbol'].tolist())
@@ -463,7 +470,7 @@ if not perfect_matches.empty:
     </div>
     """, unsafe_allow_html=True)
 
-# 導航切換（乾淨橫向排列，避免擠壓滾動）
+# 導航切換
 nav_selection = st.radio(
     "導航模式選擇",
     [
@@ -581,22 +588,7 @@ elif nav_selection == "🛡️ 核心持倉實戰情報 (Core Portfolio Tactics)
             df_core[['Symbol', 'Price', 'Change', 'RS', 'Score', 'Setup_Type', 'Entry', 'Entry_Diff', 'Stop', 'Stop_Pct', 'Target_2R', 'Target_3R', 'RSI', 'RVOL']],
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "Symbol": st.column_config.TextColumn("標的代碼"),
-                "Price": st.column_config.NumberColumn("最新收市 ($)", format="$%.2f"),
-                "Change": st.column_config.NumberColumn("今日漲跌 (%)", format="%.2f%%"),
-                "Score": st.column_config.ProgressColumn("J Law 評分", min_value=0, max_value=100, format="%d"),
-                "RS": st.column_config.ProgressColumn("RS 強度", min_value=1, max_value=99, format="%d"),
-                "Setup_Type": st.column_config.TextColumn("實戰戰術型態"),
-                "Entry": st.column_config.NumberColumn("結構買入價 ($)", format="$%.2f"),
-                "Entry_Diff": st.column_config.NumberColumn("現價距買點 (%)", format="%.2f%%"),
-                "Stop": st.column_config.NumberColumn("防守止損 ($)", format="$%.2f"),
-                "Stop_Pct": st.column_config.NumberColumn("止損幅度 (%)", format="%.2f%%"),
-                "Target_2R": st.column_config.NumberColumn("第一目標 (2R)", format="$%.2f"),
-                "Target_3R": st.column_config.NumberColumn("第二目標 (3R)", format="$%.2f"),
-                "RSI": st.column_config.NumberColumn("RSI (14)", format="%.1f"),
-                "RVOL": st.column_config.NumberColumn("成交量量比", format="%.2fx")
-            }
+            column_config=GRID_COLUMN_CONFIG
         )
 
 # ----------------------------------------------------
@@ -656,20 +648,7 @@ elif nav_selection == "01 // ⚡ 領頭羊即時機會庫 (J Law Alpha Screener)
             df_qualified[['Symbol', 'Rank', 'Score', 'Price', 'Change', 'RS', 'Stage2', 'Setup_Type', 'Entry', 'Entry_Diff', 'Stop', 'Stop_Pct', 'Target_2R', 'Target_3R']],
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "Score": st.column_config.ProgressColumn("J Law 評分", min_value=0, max_value=100, format="%d"),
-                "RS": st.column_config.ProgressColumn("RS 相對強度", min_value=1, max_value=99, format="%d"),
-                "Change": st.column_config.NumberColumn("今日漲跌 (%)", format="%.2f%%"),
-                "Price": st.column_config.NumberColumn("現價 ($)", format="$%.2f"),
-                "Setup_Type": st.column_config.TextColumn("戰術型態"),
-                "Entry": st.column_config.NumberColumn("結構買入價 ($)", format="$%.2f"),
-Entry": st.column_config.NumberColumn("結構買入價 ($)", format="$%.2f"),
-                "Entry_Diff": st.column_config.NumberColumn("現價距買點 (%)", format="%.2f%%"),
-                "Stop": st.column_config.NumberColumn("防守止損 ($)", format="$%.2f"),
-                "Stop_Pct": st.column_config.NumberColumn("止損幅度 (%)", format="%.2f%%"),
-                "Target_2R": st.column_config.NumberColumn("2R 止盈 ($)", format="$%.2f"),
-                "Target_3R": st.column_config.NumberColumn("3R 止盈 ($)", format="$%.2f")
-            }
+            column_config=GRID_COLUMN_CONFIG
         )
 
 # ----------------------------------------------------
@@ -701,7 +680,7 @@ elif nav_selection == "02 // 🔍 7 維技術診斷與圖表 (Deep Technical Rad
             ("4. DRSI 動能買點", "金叉" in stock_row['DRSI_Status'], f"DRSI 處於「{stock_row['DRSI_Status']}」，順勢起爆點成立。"),
             ("5. 20 EMA 關鍵支撐", abs(stock_row['Dist_20EMA']) <= 3.0, f"距離 20 EMA 僅 {stock_row['Dist_20EMA']}%，處於黃金回踩或起跳買區。"),
             ("6. 量能蓄勢與突破", stock_row['RVOL'] >= 1.2 or stock_row['RVOL'] < 0.8, f"相對量比 (RVOL) 為 {stock_row['RVOL']}x，量縮蓄勢或放量突破。"),
-            ("7. 結構性買點設定", True, f"判定型態為「{stock_row['Setup_Type']}」，規劃買入價 ${stock_row['Entry']:.2f}，距現價 {stock_row['Entry_Diff']}%。")
+            ("7. 結構性買點設定", True, f"判定型態為「{stock_row['Setup_Type']}」，規劃買入價 ${stock_row['Entry']:.2f}，距現價 {stock_row['Entry_Diff']}}%。")
         ]
         for title, passed, desc in checklist:
             s_icon = "✅" if passed else "⚠️"
@@ -720,4 +699,111 @@ elif nav_selection == "02 // 🔍 7 維技術診斷與圖表 (Deep Technical Rad
           <div id="tv_{selected_stock}" style="height:calc(100% - 32px);width:100%;"></div>
           <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
           <script type="text/javascript">
-          new TradingView.widget({{"autosize": true, "symbol": "{selected_stock}", "interval": "D", "timezone": "America/New_York", "theme": "dark", "style": "1", "locale": "zh_TW
+          new TradingView.widget({{"autosize": true, "symbol": "{selected_stock}", "interval": "D", "timezone": "America/New_York", "theme": "dark", "style": "1", "locale": "zh_TW", "toolbar_bg": "#0B0E14", "enable_publishing": false, "container_id": "tv_{selected_stock}"}});
+          </script>
+        </div>
+        """
+        components.html(tv_code, height=490)
+
+# ----------------------------------------------------
+# 模組 5: OPTIMUS 1% 風險倉位與執行矩陣
+# ----------------------------------------------------
+elif nav_selection == "03 // 🎯 OPTIMUS 1% 風險倉位與執行矩陣 (Execution Matrix)":
+    st.markdown("""
+    <div class="section-header">
+        <h3 style="margin:0; color:#FFF; font-weight:800; letter-spacing:1px;">
+            03 // 🎯 EXECUTION MATRIX • 樞紐買點、階梯止盈與 1% 倉位矩陣
+        </h3>
+        <div style="font-size:13px; color:#94A3B8; margin-top:4px;">
+            買入價由圖表結構決定（樞紐突破或 20 EMA 回踩），股數由 Optimus 1% 賬戶最大風險額嚴格鎖定。
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    target_calc_sym = st.selectbox("選擇要計算下單的標的：", df_results['Symbol'].tolist(), index=0)
+    stock_row = df_results[df_results['Symbol'] == target_calc_sym].iloc[0]
+
+    inp_c1, inp_c2, inp_c3 = st.columns(3)
+    with inp_c1:
+        account_capital = st.number_input("賬戶總資產 ($)", min_value=1000, max_value=10000000, value=50000, step=5000)
+    with inp_c2:
+        risk_pct = st.slider("單筆最大承受風險 (%)", min_value=0.5, max_value=2.5, value=1.0, step=0.1)
+    with inp_c3:
+        max_pos_cap = st.slider("單一持倉金額上限 (%)", min_value=10, max_value=40, value=25, step=5)
+
+    max_risk_dollars = account_capital * (risk_pct / 100.0)
+
+    target_entry = stock_row['Entry']
+    target_stop = stock_row['Stop']
+    target_risk_per_share = stock_row['Risk_Per_Share']
+    target_stop_pct = stock_row['Stop_Pct']
+    target_2r = stock_row['Target_2R']
+    target_3r = stock_row['Target_3R']
+
+    calc_shares = int(max_risk_dollars / target_risk_per_share) if target_risk_per_share > 0 else 0
+    total_pos_cost = calc_shares * target_entry
+    pos_pct_of_capital = (total_pos_cost / account_capital) * 100
+
+    max_allowed_cost = account_capital * (max_pos_cap / 100.0)
+    adj_msg = ""
+    if total_pos_cost > max_allowed_cost:
+        calc_shares = int(max_allowed_cost / target_entry)
+        total_pos_cost = calc_shares * target_entry
+        pos_pct_of_capital = (total_pos_cost / account_capital) * 100
+        adj_msg = f"⚠️ 提示：推薦股數受限於單一持倉上限 ({max_pos_cap}%)，已自動調整為安全股數。"
+
+    plan_c1, plan_c2 = st.columns(2)
+
+    with plan_c1:
+        st.markdown(f"""
+        <div class="action-box">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h4 style="margin:0; color:#38BDF8;">🎯 {target_calc_sym} 結構性進出場點位</h4>
+                <span class="badge badge-cyan">{stock_row['Setup_Type']}</span>
+            </div>
+            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 14px; font-size:15px;">
+                <div style="background:rgba(255,255,255,0.04); padding:12px; border-radius:6px;">
+                    <span style="color:#94A3B8; font-size:12px;">🔵 樞紐買入進場點 (Entry):</span><br>
+                    <b style="font-size:22px; color:#38BDF8;">${target_entry:.2f}</b><br>
+                    <span style="font-size:11px; color:#CBD5E1;">現價: ${stock_row['Price']:.2f} (距買點 {stock_row['Entry_Diff']}%)</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.04); padding:12px; border-radius:6px;">
+                    <span style="color:#94A3B8; font-size:12px;">🔴 結構性防守止損 (Stop Loss):</span><br>
+                    <b style="font-size:22px; color:#EF4444;">${target_stop:.2f} ({target_stop_pct}%)</b><br>
+                    <span style="font-size:11px; color:#EF4444;">每股承擔風險: ${target_risk_per_share:.2f}</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.04); padding:12px; border-radius:6px;">
+                    <span style="color:#94A3B8; font-size:12px;">🟢 第 1 離場目標 (2R Target):</span><br>
+                    <b style="font-size:22px; color:#10B981;">${target_2r:.2f}</b><br>
+                    <span style="font-size:11px; color:#6EE7B7;">平半倉鎖利 + 止損上移至保本價</span>
+                </div>
+                <div style="background:rgba(255,255,255,0.04); padding:12px; border-radius:6px;">
+                    <span style="color:#94A3B8; font-size:12px;">🌟 第 2 離場目標 (3R+ Target):</span><br>
+                    <b style="font-size:22px; color:#F59E0B;">${target_3r:.2f}</b><br>
+                    <span style="font-size:11px; color:#FCD34D;">沿 20 EMA 移動止損，捕捉主升浪</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with plan_c2:
+        st.markdown(f"""
+        <div class="action-box" style="border-color: rgba(16, 185, 129, 0.4);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h4 style="margin:0; color:#10B981;">🛡️ OPTIMUS 1% 風險倉位精算</h4>
+                <span class="badge badge-green">嚴格風控已啟用</span>
+            </div>
+            <div style="line-height:2.0; font-size:14px;">
+                <div>• 總賬戶資金: <b>${account_capital:,.2f}</b></div>
+                <div>• 允許最大虧損 (1R): <b style="color:#EF4444;">${max_risk_dollars:,.2f}</b> ({risk_pct}%)</div>
+                <div>• 每股承受風險金額: <b>${target_risk_per_share:.2f}</b></div>
+                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.1); margin:10px 0;">
+                <div>• <b>推薦下單股數:</b> <span style="font-size:24px; color:#10B981; font-weight:800;">{calc_shares} 股</span></div>
+                <div>• <b>總頭寸所需資金:</b> <b>${total_pos_cost:,.2f}</b> ({pos_pct_of_capital:.1f}% 倉位)</div>
+                <div>• <b>觸發止損時總虧損:</b> <b style="color:#EF4444;">-${calc_shares * target_risk_per_share:,.2f}</b> (鎖定在 1R 內)</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    if adj_msg:
+        st.info(adj_msg)
