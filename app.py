@@ -16,189 +16,210 @@ st.set_page_config(
 )
 
 # ==========================================
-# 1. TESLA IN-CAR OS 官方級純淨視覺引擎
+# 1. 旗艦級 TESLA OS 視覺引擎 (雙層暗影遮罩 + 毛玻璃卡片)
 # ==========================================
 def inject_pure_tesla_os():
-    st.markdown("""
+    # 預設使用 Tesla 官方/高畫質車隊產品大合照 (S/3/X/Y/Cybertruck/Semi/Cybercab/Optimus)
+    # 如有自己的本地圖片，可將 url 改為相對路徑或 base64
+    tesla_bg_url = "https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=2560&q=85"
+
+    st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
-        /* 全局重置：OLED 深度純黑，杜絕花巧廉價漸變 */
-        .block-container {
-            padding-top: 1rem !important;
-            padding-bottom: 2rem !important;
-            max-width: 98% !important;
-        }
+        /* 全局重置與 Tesla 全產品背景圖 (多重遮罩確保文字 100% 清晰) */
+        .block-container {{
+            padding-top: 1.2rem !important;
+            padding-bottom: 2.5rem !important;
+            max-width: 96% !important;
+        }}
 
-        .stApp {
-            background-color: #050608 !important;
+        .stApp {{
+            background-color: #07090E !important;
             background-image: 
-                radial-gradient(circle at 50% 0%, rgba(232, 33, 39, 0.08) 0%, transparent 40%) !important;
+                radial-gradient(circle at 50% 10%, rgba(232, 33, 39, 0.12) 0%, transparent 45%),
+                linear-gradient(180deg, rgba(7, 9, 14, 0.82) 0%, rgba(7, 9, 14, 0.94) 50%, #07090E 100%),
+                url("{tesla_bg_url}") !important;
+            background-size: cover !important;
+            background-position: center top !important;
+            background-attachment: fixed !important;
             color: #E2E8F0;
             font-family: 'Inter', -apple-system, sans-serif;
             letter-spacing: -0.01em;
-        }
+        }}
 
         /* Cybertruck 貫穿式前燈冷光飾條 */
-        .cyber-lightbar {
+        .cyber-lightbar {{
             height: 2px;
             width: 100%;
-            background: linear-gradient(90deg, transparent 0%, #E82127 20%, #FFFFFF 50%, #E82127 80%, transparent 100%);
-            box-shadow: 0 0 10px rgba(232, 33, 39, 0.6);
-            margin-bottom: 12px;
-        }
+            background: linear-gradient(90deg, transparent 0%, rgba(232, 33, 39, 0.8) 25%, #FFFFFF 50%, rgba(232, 33, 39, 0.8) 75%, transparent 100%);
+            box-shadow: 0 0 12px rgba(232, 33, 39, 0.5);
+            margin-bottom: 14px;
+        }}
 
-        /* Tesla 車機頂部狀態控制條 */
-        .tesla-top-nav {
+        /* Tesla 車機頂部狀態控制條 (毛玻璃懸浮) */
+        .tesla-top-nav {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: #0B0E14;
+            background: rgba(13, 17, 24, 0.82);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 4px;
-            padding: 10px 18px;
-            margin-bottom: 14px;
-        }
+            border-radius: 8px;
+            padding: 12px 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+        }}
 
-        /* 屏幕 PRND 觸控換檔條 */
-        .gear-console {
+        /* 屏幕 PRND 換檔組件 */
+        .gear-console {{
             display: inline-flex;
-            background: #000000;
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 4px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
             padding: 2px;
             gap: 2px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 11px;
             font-weight: 800;
-        }
-        .gear-pill {
+        }}
+        .gear-pill {{
             padding: 4px 10px;
-            border-radius: 3px;
+            border-radius: 4px;
             color: #475569;
-        }
-        .gear-active-d { background: #10B981; color: #000 !important; }
-        .gear-active-n { background: #F59E0B; color: #000 !important; }
-        .gear-active-p { background: #E82127; color: #FFF !important; }
+        }}
+        .gear-active-d {{ background: #10B981; color: #042F2E !important; }}
+        .gear-active-n {{ background: #F59E0B; color: #451A03 !important; }}
+        .gear-active-p {{ background: #E82127; color: #FFFFFF !important; }}
 
-        /* Tesla 車況純代碼向量遙測模組 (取代破圖與雜亂照片) */
-        .telemetry-deck {
+        /* 遙測數據指標卡片 (4格微透明 HUD) */
+        .telemetry-deck {{
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        .telemetry-node {
-            background: #0B0E14;
+            gap: 14px;
+            margin-bottom: 18px;
+        }}
+        .telemetry-node {{
+            background: rgba(14, 19, 28, 0.82);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.07);
-            border-top: 2px solid rgba(255, 255, 255, 0.15);
-            border-radius: 4px;
-            padding: 12px 16px;
-            position: relative;
-            transition: all 0.2s ease;
-        }
-        .telemetry-node:hover {
+            border-top: 2px solid rgba(255, 255, 255, 0.16);
+            border-radius: 8px;
+            padding: 14px 18px;
+            transition: all 0.25s ease;
+        }}
+        .telemetry-node:hover {{
             border-top-color: #E82127;
-            background: #0E121B;
-        }
-        .telemetry-tag {
-            font-size: 10px;
+            background: rgba(18, 25, 38, 0.9);
+            transform: translateY(-2px);
+        }}
+        .telemetry-tag {{
+            font-size: 11px;
             color: #94A3B8;
             font-family: 'JetBrains Mono', monospace;
-            letter-spacing: 0.8px;
+            letter-spacing: 0.6px;
             text-transform: uppercase;
-        }
-        .telemetry-val {
-            font-size: 22px;
+        }}
+        .telemetry-val {{
+            font-size: 24px;
             font-weight: 800;
             color: #FFFFFF;
             font-family: 'JetBrains Mono', monospace;
-            margin: 4px 0 2px 0;
-        }
-        .telemetry-sub {
+            margin: 6px 0 2px 0;
+        }}
+        .telemetry-sub {{
             font-size: 11px;
             color: #64748B;
-            font-family: 'JetBrains Mono', monospace;
-        }
+            font-family: 'Inter', sans-serif;
+        }}
 
-        /* 採用 st.tabs 並重構成 Model S/X 車機觸控 Dock (徹底無單選圓圈) */
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 6px !important;
-            background: #090C12 !important;
+        /* 車機觸控 Dock (st.tabs 精緻化) */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 8px !important;
+            background: rgba(10, 14, 22, 0.85) !important;
+            backdrop-filter: blur(12px) !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            padding: 4px !important;
-            border-radius: 6px !important;
-            margin-bottom: 16px !important;
-        }
-        .stTabs [data-baseweb="tab"] {
+            padding: 6px !important;
+            border-radius: 8px !important;
+            margin-bottom: 18px !important;
+        }}
+        .stTabs [data-baseweb="tab"] {{
             background: transparent !important;
             border: none !important;
-            border-radius: 4px !important;
-            padding: 8px 18px !important;
-            color: #8E9BAE !important;
+            border-radius: 6px !important;
+            padding: 9px 20px !important;
+            color: #94A3B8 !important;
             font-family: 'JetBrains Mono', monospace !important;
             font-size: 12px !important;
             font-weight: 700 !important;
             transition: all 0.2s ease !important;
-        }
-        .stTabs [data-baseweb="tab"]:hover {
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{
             color: #FFFFFF !important;
-            background: rgba(255, 255, 255, 0.04) !important;
-        }
-        .stTabs [aria-selected="true"] {
+            background: rgba(255, 255, 255, 0.05) !important;
+        }}
+        .stTabs [aria-selected="true"] {{
             background: #E82127 !important;
             color: #FFFFFF !important;
-            box-shadow: 0 0 14px rgba(232, 33, 39, 0.4) !important;
-        }
+            box-shadow: 0 2px 12px rgba(232, 33, 39, 0.45) !important;
+        }}
 
-        /* Cybertruck 裝甲卡片 */
-        .cyber-card {
-            background: #0C0F17;
+        /* 核心股票裝甲卡片 (分層架構、高清晰對比) */
+        .cyber-card {{
+            background: rgba(13, 18, 27, 0.84);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 4px;
+            border-radius: 8px;
             padding: 16px 18px;
-            margin-bottom: 12px;
+            margin-bottom: 14px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            min-height: 200px;
-            transition: all 0.2s ease;
-        }
-        .cyber-card:hover {
-            border-color: #E82127;
+            min-height: 215px;
+            transition: all 0.25s ease;
+        }}
+        .cyber-card:hover {{
+            border-color: rgba(232, 33, 39, 0.8);
+            background: rgba(17, 23, 35, 0.92);
             transform: translateY(-2px);
-        }
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+        }}
 
-        /* 極簡微標籤 (單行防折) */
-        .badge {
+        /* 半透明微標籤 (收斂色彩，杜絕實色膠囊) */
+        .badge {{
             display: inline-flex;
             align-items: center;
             white-space: nowrap !important;
-            padding: 2px 7px;
-            border-radius: 3px;
+            padding: 3px 8px;
+            border-radius: 4px;
             font-size: 10px;
-            font-weight: 800;
+            font-weight: 700;
             font-family: 'JetBrains Mono', monospace;
-            letter-spacing: 0.5px;
-        }
-        .b-diamond { background: rgba(0, 240, 255, 0.1); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.35); }
-        .b-gold { background: rgba(245, 158, 11, 0.1); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.35); }
-        .b-green { background: rgba(16, 185, 129, 0.1); color: #34D399; border: 1px solid #10B981; }
-        .b-red { background: rgba(232, 33, 39, 0.1); color: #FF6B6B; border: 1px solid #E82127; }
-        .b-purple { background: rgba(168, 85, 247, 0.1); color: #C084FC; border: 1px solid #A855F7; }
+            letter-spacing: 0.4px;
+        }}
+        .b-diamond {{ background: rgba(56, 189, 248, 0.12); color: #38BDF8; border: 1px solid rgba(56, 189, 248, 0.3); }}
+        .b-gold {{ background: rgba(245, 158, 11, 0.12); color: #FBBF24; border: 1px solid rgba(245, 158, 11, 0.3); }}
+        .b-green {{ background: rgba(16, 185, 129, 0.14); color: #34D399; border: 1px solid rgba(16, 185, 129, 0.35); }}
+        .b-red {{ background: rgba(232, 33, 39, 0.14); color: #F87171; border: 1px solid rgba(232, 33, 39, 0.4); }}
+        .b-purple {{ background: rgba(168, 85, 247, 0.14); color: #C084FC; border: 1px solid rgba(168, 85, 247, 0.35); }}
 
-        /* 極簡警報條 */
-        .tesla-alert {
+        /* 警報橫幅 (暗調左飾條) */
+        .tesla-alert {{
             background: rgba(232, 33, 39, 0.08);
+            backdrop-filter: blur(12px);
             border-left: 3px solid #E82127;
-            border-radius: 2px;
-            padding: 10px 14px;
-            margin-bottom: 14px;
+            border-radius: 6px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
             font-family: 'JetBrains Mono', monospace;
             font-size: 12px;
-        }
+            color: #CBD5E1;
+        }}
 
-        #MainMenu, footer, header { visibility: hidden; }
+        #MainMenu, footer, header {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -256,7 +277,7 @@ def calculate_distribution_days(df, lookback=25):
     return int(is_dist.sum())
 
 # ==========================================
-# 4. J Law M.E.T.A. 結構量化定價演算法 (完整保留)
+# 4. J Law M.E.T.A. 結構量化定價演算法
 # ==========================================
 def evaluate_jlaw_stock(symbol, df, df_spy):
     try:
@@ -282,7 +303,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         score = 0
         meta_edges = 0
 
-        # 資金面：20D CMF 蔡金資金流
+        # 資金面：20D CMF
         hl_diff = (h - l).replace(0, 1e-9)
         mf_multiplier = ((c - l) - (h - c)) / hl_diff
         mf_volume = mf_multiplier * v
@@ -486,14 +507,14 @@ else:
     gear_text = "PARK (CHILL 防禦防守)"
     recommended_exposure = 10
 
-# 1. Cybertruck 冷光燈帶
+# 1. 貫穿式前燈飾條
 st.markdown('<div class="cyber-lightbar"></div>', unsafe_allow_html=True)
 
-# 2. Tesla 頂部狀態列
+# 2. 頂部狀態列
 st.markdown(f"""
 <div class="tesla-top-nav">
     <div style="display:flex; align-items:center; gap:12px;">
-        <span style="font-size:17px; font-weight:800; font-family:'JetBrains Mono'; letter-spacing:1px; color:#FFF;">
+        <span style="font-size:16px; font-weight:800; font-family:'JetBrains Mono'; letter-spacing:1px; color:#FFF;">
             TESLA // CYBER TERMINAL
         </span>
         <span class="badge b-red">FSD V13.2</span>
@@ -511,7 +532,7 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 3. Tesla 原廠純代碼向量遙測模組 (無破圖、無雜亂色調)
+# 3. 遙測 HUD 模組
 diamond_count = len(df_results[df_results['Rank'] == 'Diamond']) if not df_results.empty else 0
 accum_count = len(df_results[df_results['CMF'] > 0.1]) if not df_results.empty else 0
 
@@ -519,23 +540,23 @@ st.markdown(f"""
 <div class="telemetry-deck">
     <div class="telemetry-node">
         <div class="telemetry-tag">⚡ CYBERCAB • FSD ALPHA</div>
-        <div class="telemetry-val" style="color:#00F0FF;">{diamond_count} <span style="font-size:13px; color:#94A3B8;">隻</span></div>
-        <div class="telemetry-sub">Stage 2 完美多頭領頭羊</div>
+        <div class="telemetry-val" style="color:#38BDF8;">{diamond_count} <span style="font-size:13px; color:#94A3B8;">隻</span></div>
+        <div class="telemetry-sub">Stage 2 多頭領頭羊</div>
     </div>
     <div class="telemetry-node">
         <div class="telemetry-tag">📐 CYBERTRUCK • 30X STEEL</div>
-        <div class="telemetry-val" style="color:{'#34D399' if qqq_dist_days<5 else '#FF6B6B'};">{qqq_dist_days} / 25 <span style="font-size:13px; color:#94A3B8;">天</span></div>
-        <div class="telemetry-sub">納指主力出貨日 ({'流動性安全' if qqq_dist_days<5 else '危險派發'})</div>
+        <div class="telemetry-val" style="color:{'#34D399' if qqq_dist_days<5 else '#F87171'};">{qqq_dist_days} / 25 <span style="font-size:13px; color:#94A3B8;">天</span></div>
+        <div class="telemetry-sub">納指派發日 ({'安全期' if qqq_dist_days<5 else '危險派發'})</div>
     </div>
     <div class="telemetry-node">
         <div class="telemetry-tag">🤖 OPTIMUS • NEURAL FLOW</div>
         <div class="telemetry-val" style="color:#C084FC;">{accum_count} <span style="font-size:13px; color:#94A3B8;">隻</span></div>
-        <div class="telemetry-sub">CMF 資金吸籌 / 暗盤異動</div>
+        <div class="telemetry-sub">CMF 主力吸籌 / 異動</div>
     </div>
     <div class="telemetry-node">
         <div class="telemetry-tag">🔋 POWERPACK • EXPOSURE</div>
-        <div class="telemetry-val" style="color:{'#34D399' if recommended_exposure>=80 else ('#F59E0B' if recommended_exposure>=40 else '#FF6B6B')};">{recommended_exposure}%</div>
-        <div class="telemetry-sub">建議賬戶最大總曝險額</div>
+        <div class="telemetry-val" style="color:{'#34D399' if recommended_exposure>=80 else ('#FBBF24' if recommended_exposure>=40 else '#F87171')};">{recommended_exposure}%</div>
+        <div class="telemetry-sub">建議賬戶最大總曝險</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -546,12 +567,12 @@ if not perfect_matches.empty:
     alert_symbols = ", ".join(perfect_matches['Symbol'].tolist())
     st.markdown(f"""
     <div class="tesla-alert">
-        🚨 <b>OPTIMUS 實時強勢異動觸發：</b> 完全符合 J LAW 7 大核心規則標的：<b style="color:#FFF;">{alert_symbols}</b>
-        （Stage 2 多頭 · RS ≥ 80 · 主力吸籌 · 距買入點 ≤ 3%）
+        🚨 <b>OPTIMUS 實時強勢異動觸發：</b> 符合 J LAW 7 大核心規則：<b style="color:#FFF;">{alert_symbols}</b>
+        <span style="color:#94A3B8; margin-left:8px;">（Stage 2 多頭 · RS ≥ 80 · 主力吸籌 · 距買入點 ≤ 3%）</span>
     </div>
     """, unsafe_allow_html=True)
 
-# 5. 車機觸控 Dock 欄（使用 st.tabs，100% 免疫單選圓圈 bug）
+# 5. 車機觸控 Dock 欄
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚡ 領頭羊即時機會庫",
     "🌊 主力資金異動雷達",
@@ -564,7 +585,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1: 領頭羊機會庫
 # ----------------------------------------------------
 with tab1:
-    f_c1, f_c2 = st.columns([1.5, 2.5])
+    f_c1, f_c2 = st.columns([1.2, 2.8])
     with f_c1:
         filter_tier = st.selectbox("評級篩選：", ["全部標的", "💎 只睇 Diamond", "💎 Diamond + 🥇 Gold"], index=0)
     with f_c2:
@@ -579,7 +600,7 @@ with tab1:
     if only_near_entry:
         df_filtered = df_filtered[df_filtered['Entry_Diff'].abs() <= 3.0]
 
-    # 卡片展示
+    # 卡片展示 (重構資訊階層)
     display_cards = df_filtered.head(4)
     if not display_cards.empty:
         card_cols = st.columns(len(display_cards))
@@ -589,24 +610,27 @@ with tab1:
                 st.markdown(f"""
                 <div class="cyber-card">
                     <div>
+                        <!-- Header: 代號與評級 -->
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span class="badge {b_class}">{row_q['Rank']} TIER</span>
-                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:#38BDF8; font-size:11px;">★ {row_q['Edges']} 重優勢</span>
+                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:#94A3B8; font-size:11px;">★ {row_q['Edges']} 重優勢</span>
                         </div>
-                        <div style="font-size:24px; font-weight:800; font-family:'JetBrains Mono'; margin:6px 0 2px 0; color:#FFF;">
+                        <div style="font-size:24px; font-weight:800; font-family:'JetBrains Mono'; margin:8px 0 2px 0; color:#FFFFFF; letter-spacing:0.5px;">
                             {row_q['Symbol']}
                         </div>
-                        <div style="font-size:15px; font-family:'JetBrains Mono'; font-weight:600; color:{'#34D399' if row_q['Change'] >= 0 else '#EF4444'};">
+                        <div style="font-size:15px; font-family:'JetBrains Mono'; font-weight:600; color:{'#34D399' if row_q['Change'] >= 0 else '#F87171'};">
                             ${row_q['Price']:.2f} ({'+' if row_q['Change']>0 else ''}{row_q['Change']:.2f}%)
                         </div>
-                        <div style="margin-top:4px;">
+                        <!-- 技術指標 Badges -->
+                        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
                             <span class="badge b-purple">CMF {row_q['CMF']}</span>
                             {f'<span class="badge b-green">POCKET PIVOT</span>' if row_q['Pocket_Pivot']=='🔥 觸發' else ''}
                         </div>
                     </div>
-                    <div style="margin-top:10px; font-size:11px; color:#94A3B8; font-family:'JetBrains Mono'; line-height:1.6; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
-                        型態: <span style="color:#38BDF8;">{row_q['Setup_Type']}</span><br>
-                        買入點: <b style="color:#FFF;">${row_q['Entry']:.2f}</b> | 止損: <b style="color:#EF4444;">${row_q['Stop']:.2f} ({row_q['Stop_Pct']}%)</b>
+                    <!-- 底部風控與點位區域 -->
+                    <div style="margin-top:14px; font-size:11px; color:#94A3B8; font-family:'JetBrains Mono'; line-height:1.7; border-top:1px solid rgba(255,255,255,0.07); padding-top:10px;">
+                        <span style="color:#64748B;">型態:</span> <span style="color:#E2E8F0;">{row_q['Setup_Type']}</span><br>
+                        買入: <b style="color:#FFFFFF;">${row_q['Entry']:.2f}</b> │ 止損: <b style="color:#F87171;">${row_q['Stop']:.2f} ({row_q['Stop_Pct']}%)</b>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
@@ -664,7 +688,7 @@ with tab4:
             s_icon = "✅" if passed else "⚠️"
             b_color = "#10B981" if passed else "#F59E0B"
             st.markdown(f"""
-            <div style="background:#0C0F17; border-left:3px solid {b_color}; padding:6px 10px; margin-bottom:6px; border-radius:2px;">
+            <div style="background:rgba(13,18,27,0.8); border-left:3px solid {b_color}; padding:8px 12px; margin-bottom:6px; border-radius:4px; border:1px solid rgba(255,255,255,0.05); border-left-width:3px;">
                 <div style="font-weight:700; color:#FFF; font-size:12px;">{s_icon} {title}</div>
                 <div style="font-size:11px; color:#94A3B8;">{desc}</div>
             </div>
@@ -715,11 +739,11 @@ with tab5:
     calc_shares = int(max_risk_dollars / target_risk_per_share) if target_risk_per_share > 0 else 0
 
     st.markdown(f"""
-    <div style="background:#0C0F17; border-left:3px solid #10B981; padding:14px; border-radius:4px; font-family:'JetBrains Mono'; font-size:13px; line-height:2.0; margin-top:10px;">
+    <div style="background:rgba(13,18,27,0.85); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.08); border-left:4px solid #10B981; padding:16px; border-radius:8px; font-family:'JetBrains Mono'; font-size:13px; line-height:2.0; margin-top:10px;">
         <div style="font-weight:800; color:#FFF; font-size:15px; margin-bottom:6px;">🛡️ OPTIMUS 1% 風控執行指令</div>
         • 推薦買入股數: <b style="color:#10B981; font-size:20px;">{calc_shares} 股</b><br>
-        • 樞紐買點 (Limit): <b>${target_entry:.2f}</b> | 條件止損 (Stop): <b style="color:#EF4444;">${target_stop:.2f} ({stock_row['Stop_Pct']}%)</b><br>
-        • 趁強賣出 (2R 平半): <b style="color:#38BDF8;">${stock_row['Target_2R']:.2f}</b> (平 {calc_shares // 2} 股) | 趁弱移停 (3R): <b style="color:#F59E0B;">${stock_row['Target_3R']:.2f}</b>
+        • 樞紐買點 (Limit): <b>${target_entry:.2f}</b> │ 條件止損 (Stop): <b style="color:#F87171;">${target_stop:.2f} ({stock_row['Stop_Pct']}%)</b><br>
+        • 趁強賣出 (2R 平半): <b style="color:#38BDF8;">${stock_row['Target_2R']:.2f}</b> (平 {calc_shares // 2} 股) │ 趁弱移停 (3R): <b style="color:#FBBF24;">${stock_row['Target_3R']:.2f}</b>
     </div>
     """, unsafe_allow_html=True)
 
