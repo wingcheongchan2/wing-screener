@@ -3,295 +3,207 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import streamlit.components.v1 as components
-import requests
 import datetime
 
 # ==========================================
 # 0. 系統核心配置
 # ==========================================
 st.set_page_config(
-    page_title="TESLA CYBER TERMINAL • J LAW ALPHA & SMART MONEY",
+    page_title="TESLA OS // J LAW ALPHA TERMINAL",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # ==========================================
-# 1. TESLA FLEET 旗艦級車機 OS 視覺引擎
+# 1. TESLA IN-CAR OS 官方級純淨視覺引擎
 # ==========================================
-def inject_tesla_fleet_ui():
-    cyber_main_bg = "https://images.unsplash.com/photo-1544829099-b9a0c07fad1a?auto=format&fit=crop&w=2600&q=80"
-    
-    st.markdown(f"""
+def inject_pure_tesla_os():
+    st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700;800;900&family=Space+Grotesk:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
 
-        /* 全局純黑 OLED 底盤 */
-        .block-container {{
+        /* 全局重置：OLED 深度純黑，杜絕花巧廉價漸變 */
+        .block-container {
             padding-top: 1rem !important;
             padding-bottom: 2rem !important;
-            max-width: 98.5% !important;
-        }}
+            max-width: 98% !important;
+        }
 
-        .stApp {{
-            background-color: #05070B !important;
+        .stApp {
+            background-color: #050608 !important;
             background-image: 
-                radial-gradient(circle at 50% -10%, rgba(232, 33, 39, 0.18) 0%, transparent 60%),
-                linear-gradient(180deg, rgba(5, 7, 11, 0.94) 0%, rgba(8, 11, 18, 0.99) 100%),
-                url('{cyber_main_bg}') no-repeat center center fixed !important;
-            background-size: cover !important;
+                radial-gradient(circle at 50% 0%, rgba(232, 33, 39, 0.08) 0%, transparent 40%) !important;
             color: #E2E8F0;
-            font-family: 'Space Grotesk', -apple-system, sans-serif;
-        }}
+            font-family: 'Inter', -apple-system, sans-serif;
+            letter-spacing: -0.01em;
+        }
 
-        /* 側邊欄：消光冷軋不銹鋼 */
-        section[data-testid="stSidebar"] {{
-            background: rgba(7, 10, 16, 0.98) !important;
-            backdrop-filter: blur(25px);
-            border-right: 1px solid rgba(255, 255, 255, 0.08);
-            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.85);
-        }}
-
-        /* Cybertruck 標誌性貫穿式前日行燈帶 */
-        .cyber-lightbar {{
-            height: 3px;
+        /* Cybertruck 貫穿式前燈冷光飾條 */
+        .cyber-lightbar {
+            height: 2px;
             width: 100%;
-            background: linear-gradient(90deg, transparent 0%, #E82127 20%, #FFF 50%, #E82127 80%, transparent 100%);
-            box-shadow: 0 0 14px #E82127, 0 0 25px rgba(232, 33, 39, 0.7);
+            background: linear-gradient(90deg, transparent 0%, #E82127 20%, #FFFFFF 50%, #E82127 80%, transparent 100%);
+            box-shadow: 0 0 10px rgba(232, 33, 39, 0.6);
             margin-bottom: 12px;
-            border-radius: 2px;
-        }}
+        }
 
-        /* Tesla 車機頂部儀表 Banner */
-        .tesla-cockpit-bar {{
-            background: rgba(13, 17, 26, 0.88);
-            border: 1px solid rgba(255, 255, 255, 0.09);
-            border-radius: 8px;
-            padding: 12px 20px;
-            margin-bottom: 16px;
+        /* Tesla 車機頂部狀態控制條 */
+        .tesla-top-nav {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            backdrop-filter: blur(20px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-        }}
+            background: #0B0E14;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 4px;
+            padding: 10px 18px;
+            margin-bottom: 14px;
+        }
 
-        /* Tesla 屏幕觸控換檔條 PRND */
-        .tesla-gear-console {{
+        /* 屏幕 PRND 觸控換檔條 */
+        .gear-console {
             display: inline-flex;
             background: #000000;
             border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 6px;
-            padding: 3px;
-            gap: 4px;
-            font-family: 'JetBrains Mono', monospace;
-            font-weight: 900;
-            font-size: 13px;
-        }}
-        .gear-pill {{
-            padding: 5px 12px;
             border-radius: 4px;
-            color: #475569;
-            transition: all 0.2s ease;
-        }}
-        .gear-active-drive {{
-            background: #10B981 !important;
-            color: #000 !important;
-            box-shadow: 0 0 14px rgba(16, 185, 129, 0.8);
-        }}
-        .gear-active-neutral {{
-            background: #F59E0B !important;
-            color: #000 !important;
-            box-shadow: 0 0 14px rgba(245, 158, 11, 0.8);
-        }}
-        .gear-active-park {{
-            background: #E82127 !important;
-            color: #FFF !important;
-            box-shadow: 0 0 16px rgba(232, 33, 39, 0.85);
-        }}
-
-        /* Tesla 產品美術展示卡 (Product Fleet Showcase Card) */
-        .fleet-card {{
-            background: rgba(13, 17, 26, 0.85);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
-            overflow: hidden;
-            transition: all 0.25s ease;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            height: 100%;
-        }}
-        .fleet-card:hover {{
-            border-color: #E82127;
-            transform: translateY(-3px);
-            box-shadow: 0 12px 30px rgba(232, 33, 39, 0.25);
-        }}
-        .fleet-img-container {{
-            width: 100%;
-            height: 120px;
-            overflow: hidden;
-            position: relative;
-        }}
-        .fleet-img-container img {{
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            filter: brightness(0.85) contrast(1.15);
-            transition: all 0.3s ease;
-        }}
-        .fleet-card:hover .fleet-img-container img {{
-            filter: brightness(1.0) contrast(1.2);
-            transform: scale(1.03);
-        }}
-        .fleet-overlay {{
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(180deg, transparent 0%, rgba(13, 17, 26, 0.95) 100%);
-            padding: 8px 12px 4px 12px;
-        }}
-        .fleet-body {{
-            padding: 10px 14px 14px 14px;
+            padding: 2px;
+            gap: 2px;
             font-family: 'JetBrains Mono', monospace;
-        }}
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .gear-pill {
+            padding: 4px 10px;
+            border-radius: 3px;
+            color: #475569;
+        }
+        .gear-active-d { background: #10B981; color: #000 !important; }
+        .gear-active-n { background: #F59E0B; color: #000 !important; }
+        .gear-active-p { background: #E82127; color: #FFF !important; }
 
-        /* 拔除 Streamlit 醜陋原生單選圓點，重構為車機觸控 Dock */
-        div[data-testid="stRadio"] > div {{
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-            gap: 8px !important;
-            background: rgba(10, 14, 23, 0.85) !important;
+        /* Tesla 車況純代碼向量遙測模組 (取代破圖與雜亂照片) */
+        .telemetry-deck {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        .telemetry-node {
+            background: #0B0E14;
+            border: 1px solid rgba(255, 255, 255, 0.07);
+            border-top: 2px solid rgba(255, 255, 255, 0.15);
+            border-radius: 4px;
+            padding: 12px 16px;
+            position: relative;
+            transition: all 0.2s ease;
+        }
+        .telemetry-node:hover {
+            border-top-color: #E82127;
+            background: #0E121B;
+        }
+        .telemetry-tag {
+            font-size: 10px;
+            color: #94A3B8;
+            font-family: 'JetBrains Mono', monospace;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+        }
+        .telemetry-val {
+            font-size: 22px;
+            font-weight: 800;
+            color: #FFFFFF;
+            font-family: 'JetBrains Mono', monospace;
+            margin: 4px 0 2px 0;
+        }
+        .telemetry-sub {
+            font-size: 11px;
+            color: #64748B;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* 採用 st.tabs 並重構成 Model S/X 車機觸控 Dock (徹底無單選圓圈) */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 6px !important;
+            background: #090C12 !important;
             border: 1px solid rgba(255, 255, 255, 0.08) !important;
-            padding: 6px 8px !important;
-            border-radius: 8px !important;
-            margin: 16px 0 !important;
-        }}
-        div[data-testid="stRadio"] label {{
-            display: flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            background: rgba(18, 24, 38, 0.65) !important;
-            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+            padding: 4px !important;
             border-radius: 6px !important;
-            padding: 8px 16px !important;
-            margin: 0 !important;
-            color: #94A3B8 !important;
-            cursor: pointer !important;
-            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            margin-bottom: 16px !important;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background: transparent !important;
+            border: none !important;
+            border-radius: 4px !important;
+            padding: 8px 18px !important;
+            color: #8E9BAE !important;
             font-family: 'JetBrains Mono', monospace !important;
             font-size: 12px !important;
             font-weight: 700 !important;
-        }}
-        div[data-testid="stRadio"] label input {{ display: none !important; }}
-        div[data-testid="stRadio"] label > div:first-child {{ display: none !important; }}
-        div[data-testid="stRadio"] label:hover {{
-            border-color: #E82127 !important;
+            transition: all 0.2s ease !important;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
             color: #FFFFFF !important;
-            background: rgba(232, 33, 39, 0.15) !important;
-        }}
-        div[data-testid="stRadio"] label:has(input:checked) {{
-            background: linear-gradient(135deg, #E82127 0%, #B31419 100%) !important;
+            background: rgba(255, 255, 255, 0.04) !important;
+        }
+        .stTabs [aria-selected="true"] {
+            background: #E82127 !important;
             color: #FFFFFF !important;
-            border-color: #FF4D4D !important;
-            box-shadow: 0 0 16px rgba(232, 33, 39, 0.5) !important;
-        }}
+            box-shadow: 0 0 14px rgba(232, 33, 39, 0.4) !important;
+        }
 
         /* Cybertruck 裝甲卡片 */
-        .cyber-card {{
-            background: linear-gradient(145deg, rgba(15, 20, 31, 0.88) 0%, rgba(9, 13, 20, 0.96) 100%);
-            backdrop-filter: blur(18px);
+        .cyber-card {
+            background: #0C0F17;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 8px;
+            border-radius: 4px;
             padding: 16px 18px;
             margin-bottom: 12px;
-            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
-            transition: all 0.25s ease;
-            min-height: 220px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-        }}
-        .cyber-card:hover {{
+            min-height: 200px;
+            transition: all 0.2s ease;
+        }
+        .cyber-card:hover {
             border-color: #E82127;
-            box-shadow: 0 14px 35px rgba(232, 33, 39, 0.3);
             transform: translateY(-2px);
-        }}
+        }
 
-        /* 徽章絕對單行不折行 */
-        .badge {{
+        /* 極簡微標籤 (單行防折) */
+        .badge {
             display: inline-flex;
             align-items: center;
             white-space: nowrap !important;
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 10.5px;
+            padding: 2px 7px;
+            border-radius: 3px;
+            font-size: 10px;
             font-weight: 800;
             font-family: 'JetBrains Mono', monospace;
             letter-spacing: 0.5px;
-        }}
-        .badge-diamond {{ background: rgba(6, 182, 212, 0.2); color: #22D3EE; border: 1px solid #06B6D4; }}
-        .badge-gold {{ background: rgba(234, 179, 8, 0.2); color: #FACC15; border: 1px solid #EAB308; }}
-        .badge-green {{ background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid #10B981; }}
-        .badge-red {{ background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid #EF4444; }}
-        .badge-tesla {{ background: rgba(232, 33, 39, 0.25); color: #FF6B6B; border: 1px solid #E82127; }}
-        .badge-flow {{ background: rgba(168, 85, 247, 0.2); color: #C084FC; border: 1px solid #A855F7; }}
-        .badge-supercharger {{ background: rgba(245, 158, 11, 0.2); color: #FCD34D; border: 1px solid #F59E0B; }}
+        }
+        .b-diamond { background: rgba(0, 240, 255, 0.1); color: #00F0FF; border: 1px solid rgba(0, 240, 255, 0.35); }
+        .b-gold { background: rgba(245, 158, 11, 0.1); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.35); }
+        .b-green { background: rgba(16, 185, 129, 0.1); color: #34D399; border: 1px solid #10B981; }
+        .b-red { background: rgba(232, 33, 39, 0.1); color: #FF6B6B; border: 1px solid #E82127; }
+        .b-purple { background: rgba(168, 85, 247, 0.1); color: #C084FC; border: 1px solid #A855F7; }
 
-        .section-header {{
-            background: rgba(13, 17, 28, 0.9);
-            border-left: 4px solid #E82127;
-            padding: 12px 18px;
-            border-radius: 6px;
+        /* 極簡警報條 */
+        .tesla-alert {
+            background: rgba(232, 33, 39, 0.08);
+            border-left: 3px solid #E82127;
+            border-radius: 2px;
+            padding: 10px 14px;
             margin-bottom: 14px;
-        }}
-        .action-box {{
-            background: rgba(8, 12, 20, 0.95);
-            border: 1px solid rgba(232, 33, 39, 0.35);
-            border-radius: 8px;
-            padding: 18px;
             font-family: 'JetBrains Mono', monospace;
-        }}
+            font-size: 12px;
+        }
 
-        /* Tesla 紅光按鈕 */
-        div.stButton > button:first-child {{
-            background: linear-gradient(135deg, #202738 0%, #0E131F 100%) !important;
-            color: #FFFFFF !important;
-            border: 1px solid #E82127 !important;
-            border-radius: 6px !important;
-            padding: 10px 22px !important;
-            font-family: 'JetBrains Mono', monospace !important;
-            font-weight: 800 !important;
-            letter-spacing: 1px !important;
-            box-shadow: 0 4px 14px rgba(232, 33, 39, 0.25) !important;
-        }}
-        div.stButton > button:first-child:hover {{
-            background: #E82127 !important;
-            color: #FFF !important;
-            box-shadow: 0 0 22px rgba(232, 33, 39, 0.7) !important;
-        }}
-
-        @keyframes pulse-tesla {{
-            0% {{ box-shadow: 0 0 0 0 rgba(232, 33, 39, 0.6); }}
-            70% {{ box-shadow: 0 0 0 10px rgba(232, 33, 39, 0); }}
-            100% {{ box-shadow: 0 0 0 0 rgba(232, 33, 39, 0); }}
-        }}
-        .alert-tesla {{
-            background: linear-gradient(135deg, rgba(232, 33, 39, 0.25) 0%, rgba(14, 19, 31, 0.95) 100%);
-            border: 1px solid #E82127;
-            border-radius: 8px;
-            padding: 12px 18px;
-            margin-bottom: 14px;
-            animation: pulse-tesla 2.2s infinite;
-        }}
+        #MainMenu, footer, header { visibility: hidden; }
     </style>
     """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 標的池與統一表格配置
+# 2. 標的池配置
 # ==========================================
 CORE_PORTFOLIO_SYMBOLS = ["TSLA", "AAOI", "NVDA", "MU", "BE", "NBIS", "DDOG"]
 
@@ -301,26 +213,6 @@ DEFAULT_UNIVERSE = list(dict.fromkeys(CORE_PORTFOLIO_SYMBOLS + [
     "NOW", "SHOP", "APP", "CVNA", "UPST", "TTD", "SE", "MELI", "CEG", "VST", "GE", "CAT", 
     "LLY", "ISRG", "COST", "NFLX", "UBER", "ABNB", "HOOD", "SOFI", "DKNG", "CELH", "ONON"
 ]))
-
-GRID_COLUMN_CONFIG = {
-    "Symbol": st.column_config.TextColumn("代碼"),
-    "Rank": st.column_config.TextColumn("評級"),
-    "Price": st.column_config.NumberColumn("最新價 ($)", format="$%.2f"),
-    "Change": st.column_config.NumberColumn("今日漲跌 (%)", format="%.2f%%"),
-    "Score": st.column_config.ProgressColumn("J Law 評分", min_value=0, max_value=100, format="%d"),
-    "RS": st.column_config.ProgressColumn("RS 強度", min_value=1, max_value=99, format="%d"),
-    "Flow_Status": st.column_config.TextColumn("主力資金狀態"),
-    "CMF": st.column_config.NumberColumn("20D CMF", format="%.2f"),
-    "Pocket_Pivot": st.column_config.TextColumn("口袋買點"),
-    "Setup_Type": st.column_config.TextColumn("戰術型態"),
-    "Entry": st.column_config.NumberColumn("樞紐買點 ($)", format="$%.2f"),
-    "Entry_Diff": st.column_config.NumberColumn("距買點 (%)", format="%.2f%%"),
-    "Stop": st.column_config.NumberColumn("結構止損 ($)", format="$%.2f"),
-    "Stop_Pct": st.column_config.NumberColumn("止損幅 (%)", format="%.2f%%"),
-    "Target_2R": st.column_config.NumberColumn("趁強平半 (2R)", format="$%.2f"),
-    "Target_3R": st.column_config.NumberColumn("趁弱移停 (3R)", format="$%.2f"),
-    "RVOL": st.column_config.NumberColumn("量比 RVOL", format="%.2fx")
-}
 
 # ==========================================
 # 3. 數據下載引擎
@@ -356,8 +248,7 @@ def fetch_all_data(tickers):
     return stocks, df_spy, df_qqq, df_dia
 
 def calculate_distribution_days(df, lookback=25):
-    if df is None or len(df) < lookback + 1:
-        return 0
+    if df is None or len(df) < lookback + 1: return 0
     recent = df.iloc[-lookback:].copy()
     prev_close = df['Close'].shift(1).iloc[-lookback:]
     prev_vol = df['Volume'].shift(1).iloc[-lookback:]
@@ -365,7 +256,7 @@ def calculate_distribution_days(df, lookback=25):
     return int(is_dist.sum())
 
 # ==========================================
-# 4. J Law M.E.T.A. 結構量化定價演算法
+# 4. J Law M.E.T.A. 結構量化定價演算法 (完整保留)
 # ==========================================
 def evaluate_jlaw_stock(symbol, df, df_spy):
     try:
@@ -403,40 +294,33 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         max_down_vol = max(last_10_down_vol) if last_10_down_vol else 0
         is_pocket_pivot = is_up_today and (v.iloc[-1] > max_down_vol) and (curr_price >= ema10 * 0.98)
 
-        # 50 日多空量能攻防比
-        last_50_c = c.iloc[-50:]
-        last_50_v = v.iloc[-50:]
-        up_vol_sum = last_50_v[last_50_c > last_50_c.shift(1)].sum()
-        down_vol_sum = last_50_v[last_50_c < last_50_c.shift(1)].sum()
-        up_down_ratio = float(up_vol_sum / (down_vol_sum if down_vol_sum > 0 else 1e-9))
-
         if cmf_20 > 0.15 or (is_pocket_pivot and cmf_20 > 0.05):
-            flow_status = "🔥 主力強勢吸籌 (Accumulation)"
+            flow_status = "🔥 主力吸籌"
             score += 15
-            reasons.append("主力大單持續淨流入")
+            reasons.append("主力淨流入")
         elif cmf_20 < -0.10:
-            flow_status = "⚠️ 機構資金派發 (Distribution)"
+            flow_status = "⚠️ 資金派發"
             score -= 10
         else:
-            flow_status = "⚖️ 資金中性沉澱 (Neutral)"
+            flow_status = "⚖️ 資金中性"
 
         if is_pocket_pivot:
             score += 10
             meta_edges += 1
-            reasons.append("觸發口袋買點 (Pocket Pivot)")
+            reasons.append("觸發口袋買點")
 
-        # Stage 2 趨勢範式
+        # Stage 2 範式
         is_stage2 = False
         if curr_price > sma50 and sma50 > sma150 and sma150 > sma200:
             score += 20
             if sma200 >= sma200_20d_ago and dist_h52 >= -25.0 and dist_l52 >= 25.0:
                 is_stage2 = True
                 meta_edges += 1
-                reasons.append("Stage 2 完美多頭架構")
+                reasons.append("Stage 2 完美多頭")
         elif curr_price > sma50:
             score += 8
 
-        # RS 強度
+        # RS 相對強度
         def perf(series, days):
             d = min(len(series) - 1, days)
             return (series.iloc[-1] / series.iloc[-d]) - 1
@@ -448,10 +332,9 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         if rs_rating >= 80:
             score += 25
             meta_edges += 1
-            reasons.append(f"強勢領頭羊 (RS {rs_rating})")
+            reasons.append(f"領頭羊 (RS {rs_rating})")
         elif rs_rating >= 65:
             score += 15
-            reasons.append(f"優於大盤 (RS {rs_rating})")
         elif rs_rating >= 50: score += 8
 
         # VCP 波動收窄
@@ -463,12 +346,12 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             score += 12
             is_vcp = True
             meta_edges += 1
-            reasons.append("VCP 波動收窄蓄勢")
+            reasons.append("VCP 波動收窄")
         if float(c.iloc[-5:].std() / curr_price) < 0.025:
             score += 5
-            reasons.append("緊密收市 (Tight Closes)")
+            reasons.append("緊密收市")
 
-        # 均線回踩區
+        # 均線回踩
         dist_ema10 = ((curr_price - ema10) / ema10) * 100
         dist_ema20 = ((curr_price - ema20) / ema20) * 100
         is_ma_support = False
@@ -476,10 +359,9 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             score += 15
             is_ma_support = True
             meta_edges += 1
-            reasons.append("回踩 10/20 EMA 支撐區間")
+            reasons.append("回踩 10/20 EMA")
         elif -2.0 <= dist_ema20 < 0:
             score += 8
-            reasons.append("下探 20 EMA 關鍵均線")
 
         # DRSI 動能
         delta = c.diff()
@@ -496,41 +378,36 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         if prev_k <= prev_d and k_val > d_val:
             is_drsi_bullish = True
             meta_edges += 1
-            if k_val < 35:
-                score += 15
-                drsi_status = "超賣金叉 (絕佳買點)"
-                reasons.append("DRSI 超賣金叉")
-            else:
-                score += 10
-                drsi_status = "多頭金叉 (順勢起爆)"
-                reasons.append("DRSI 多頭金叉")
+            drsi_status = "超賣金叉" if k_val < 35 else "多頭金叉"
+            score += 12
+            reasons.append(f"DRSI {drsi_status}")
         elif k_val > d_val:
             score += 6
             drsi_status = "多頭維持"
 
-        # 量能分析
+        # 量比 RVOL
         v_50 = float(v.rolling(50).mean().iloc[-1])
         rvol = float(v.iloc[-1]) / (v_50 if v_50 > 0 else 1)
         if change_pct > 0 and rvol >= 1.3:
             score += 10
-            reasons.append(f"爆量突破 (RVOL {rvol:.1f}x)")
+            reasons.append(f"爆量 ({rvol:.1f}x)")
         elif rvol < 0.75:
             score += 7
-            reasons.append("量能乾涸 (VDU 沉澱)")
+            reasons.append("量縮沉澱 (VDU)")
 
         total_score = int(np.clip(score, 0, 100))
         rank = "Diamond" if (total_score >= 80 and is_stage2) else ("Gold" if total_score >= 65 else ("Silver" if total_score >= 50 else "Bronze"))
 
-        # J Law 結構定價計算
+        # 結構定價計算
         recent_10d_high = float(h.iloc[-10:].max())
         recent_10d_low = float(l.iloc[-10:].min())
 
         if is_ma_support or abs(dist_ema20) <= 2.5:
-            setup_type = "M.E.T.A. Pullback 回踩買點"
+            setup_type = "M.E.T.A. 回踩買點"
             calc_entry = round(max(ema20, curr_price) * 1.002, 2)
             calc_stop = round(min(ema20 * 0.965, calc_entry - (1.5 * atr14)), 2)
         else:
-            setup_type = "VCP Pivot 樞紐突破點"
+            setup_type = "VCP 樞紐突破點"
             calc_entry = round(recent_10d_high * 1.002, 2)
             calc_stop = round(max(recent_10d_low * 0.99, calc_entry - (1.5 * atr14)), 2)
 
@@ -556,7 +433,6 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             "Flow_Status": flow_status,
             "CMF": round(cmf_20, 2),
             "Pocket_Pivot": "🔥 觸發" if is_pocket_pivot else "—",
-            "UpDown_Ratio": round(up_down_ratio, 2),
             "Stage2": "符合" if is_stage2 else "否",
             "DRSI_Status": drsi_status,
             "RVOL": round(rvol, 2),
@@ -578,503 +454,226 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
 # ==========================================
 # 5. 主應用渲染
 # ==========================================
-inject_tesla_fleet_ui()
+inject_pure_tesla_os()
 
-with st.sidebar:
-    st.markdown("## ⚡ TESLA FLEET")
-    st.caption("Optimus Autonomous Terminal • FSD v13.2")
-    st.markdown("---")
+# 抓取市場數據
+stock_dict, df_spy, df_qqq, df_dia = fetch_all_data(DEFAULT_UNIVERSE)
+results = [evaluate_jlaw_stock(sym, df_t, df_spy) for sym, df_t in stock_dict.items()] if stock_dict and df_spy is not None else []
+results = [r for r in results if r is not None]
+df_results = pd.DataFrame(results)
+if not df_results.empty:
+    df_results = df_results.sort_values(by=['Score', 'RS'], ascending=[False, False]).reset_index(drop=True)
 
-    st.markdown("""
-    <div style="background:rgba(232, 33, 39, 0.12); border:1px solid #E82127; border-radius:6px; padding:12px; margin-bottom:14px;">
-        <div style="font-weight:900; color:#FF6B6B; font-size:12.5px;">🤖 OPTIMUS GEN-3 TELEMETRY</div>
-        <div style="font-size:11px; color:#CBD5E1; margin-top:4px; line-height:1.5;">
-            神經網絡狀態：<b>120 FPS 運算中</b><br>
-            已接入 J Law 兩屆美股冠軍實戰體系：M.E.T.A. 5重優勢共振、RS強勢榜、2R趁強鎖利及1%嚴格風控。
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# 大盤指標計算
+qqq_dist_days = calculate_distribution_days(df_qqq, lookback=25)
+spy_dist_days = calculate_distribution_days(df_spy, lookback=25)
 
-    custom_add = st.text_area("增補自選標的 (逗號分隔)", value="")
-    custom_tickers = [x.strip().upper() for x in custom_add.split(",") if x.strip()]
-    full_scan_list = list(dict.fromkeys(DEFAULT_UNIVERSE + custom_tickers))
-    st.caption(f"全天候監控標的：**{len(full_scan_list)}** 隻")
-    
-    if st.button("⚡ 重新掃描市場 (RE-SCAN)"):
-        st.session_state.pop('scan_data', None)
-        st.rerun()
-
-    st.markdown("---")
-    st.markdown("### 🔔 Telegram 警報推播")
-    tg_token = st.text_input("Bot Token", type="password", placeholder="選填 Telegram Token")
-    tg_chat_id = st.text_input("Chat ID", placeholder="選填 Chat ID")
-    if tg_token and tg_chat_id:
-        if st.button("📤 發送測試警報"):
-            try:
-                r = requests.post(f"https://api.telegram.org/bot{tg_token}/sendMessage", 
-                                  json={"chat_id": tg_chat_id, "text": "⚡ [Tesla Cyber Terminal] 主力資金異動與 J Law 系統已連線！", "parse_mode": "Markdown"}, timeout=5)
-                if r.status_code == 200: st.success("發送成功！")
-                else: st.error("發送失敗，請核對參數")
-            except Exception as e:
-                st.error(f"連線異常: {e}")
-
-# 行情抓取
-if 'scan_data' not in st.session_state:
-    with st.spinner("⚡ Optimus 正在執行多線程量化計算，同步 J Law M.E.T.A. 數據..."):
-        stock_dict, df_spy, df_qqq, df_dia = fetch_all_data(full_scan_list)
-        if stock_dict is not None and df_spy is not None:
-            results = [evaluate_jlaw_stock(sym, df_t, df_spy) for sym, df_t in stock_dict.items()]
-            results = [r for r in results if r is not None]
-            df_res = pd.DataFrame(results)
-            if not df_res.empty:
-                df_res = df_res.sort_values(by=['Score', 'RS'], ascending=[False, False]).reset_index(drop=True)
-            st.session_state['scan_data'] = df_res
-            st.session_state['market_indexes'] = {'SPY': df_spy, 'QQQ': df_qqq, 'DIA': df_dia}
-        else:
-            st.session_state['scan_data'] = pd.DataFrame()
-            st.session_state['market_indexes'] = {}
-
-df_results = st.session_state.get('scan_data', pd.DataFrame())
-indexes = st.session_state.get('market_indexes', {})
-
-# 大盤狀態計算
-qqq_df = indexes.get('QQQ')
-spy_df = indexes.get('SPY')
-qqq_dist_days = calculate_distribution_days(qqq_df, lookback=25)
-spy_dist_days = calculate_distribution_days(spy_df, lookback=25)
-
-qqq_curr = float(qqq_df['Close'].iloc[-1]) if qqq_df is not None else 0
-qqq_ema20 = float(qqq_df['Close'].ewm(span=20, adjust=False).mean().iloc[-1]) if qqq_df is not None else 0
-spy_curr = float(spy_df['Close'].iloc[-1]) if spy_df is not None else 0
-spy_sma50 = float(spy_df['Close'].rolling(50).mean().iloc[-1]) if spy_df is not None else 0
+qqq_curr = float(df_qqq['Close'].iloc[-1]) if df_qqq is not None else 0
+qqq_ema20 = float(df_qqq['Close'].ewm(span=20, adjust=False).mean().iloc[-1]) if df_qqq is not None else 0
+spy_curr = float(df_spy['Close'].iloc[-1]) if df_spy is not None else 0
+spy_sma50 = float(df_spy['Close'].rolling(50).mean().iloc[-1]) if df_spy is not None else 0
 
 if (qqq_curr > qqq_ema20 and spy_curr > spy_sma50) and (qqq_dist_days < 5 and spy_dist_days < 5):
-    gear_class_d = "gear-active-drive"
-    gear_class_n, gear_class_p = "", ""
-    gear_text = "DRIVE (PLAID 滿油門做多)"
+    gear_mode = "D"
+    gear_text = "DRIVE (PLAID 滿油門)"
     recommended_exposure = 100
 elif (qqq_curr > qqq_ema20 or spy_curr > spy_sma50) and (qqq_dist_days < 6):
-    gear_class_n = "gear-active-neutral"
-    gear_class_d, gear_class_p = "", ""
-    gear_text = "NEUTRAL (STANDARD 輕倉整理)"
+    gear_mode = "N"
+    gear_text = "NEUTRAL (STANDARD 輕倉)"
     recommended_exposure = 40
 else:
-    gear_class_p = "gear-active-park"
-    gear_class_d, gear_class_n = "", ""
+    gear_mode = "P"
     gear_text = "PARK (CHILL 防禦防守)"
     recommended_exposure = 10
 
-# 1. 貫穿式前日行燈帶
+# 1. Cybertruck 冷光燈帶
 st.markdown('<div class="cyber-lightbar"></div>', unsafe_allow_html=True)
 
-# 2. Tesla Cockpit Header
+# 2. Tesla 頂部狀態列
 st.markdown(f"""
-<div class="tesla-cockpit-bar">
-    <div>
-        <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:22px; font-weight:900; font-family:'Space Grotesk'; color:#FFF; letter-spacing:1px;">
-                ⚡ TESLA CYBER TERMINAL <span style="color:#E82127;">// FLEET OS 12.5</span>
-            </span>
-            <span class="badge badge-tesla">CYBERCAB ONLINE</span>
-            <span class="badge badge-diamond">OPTIMUS GEN-3</span>
-            <span class="badge badge-supercharger">⚡ 250kW V4 FLOW</span>
-        </div>
-        <div style="font-size:11.5px; color:#94A3B8; margin-top:3px; font-family:'JetBrains Mono';">
-            CYBERTRUCK STAINLESS STEEL RADAR • J LAW CHAMPION TRADING SYSTEM
-        </div>
+<div class="tesla-top-nav">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <span style="font-size:17px; font-weight:800; font-family:'JetBrains Mono'; letter-spacing:1px; color:#FFF;">
+            TESLA // CYBER TERMINAL
+        </span>
+        <span class="badge b-red">FSD V13.2</span>
+        <span class="badge b-diamond">HW4.0 ACTIVE</span>
     </div>
-    <div style="display:flex; align-items:center; gap:16px;">
-        <div style="text-align:right;">
-            <div style="font-size:10.5px; color:#94A3B8; font-family:'JetBrains Mono';">大盤檔位 TELEMETRY</div>
-            <div style="font-size:12px; font-weight:700; color:#E2E8F0; margin-top:2px;">{gear_text}</div>
-        </div>
-        <div class="tesla-gear-console">
-            <span class="gear-pill {gear_class_p}">P</span>
+    <div style="display:flex; align-items:center; gap:14px;">
+        <span style="font-size:11px; color:#94A3B8; font-family:'JetBrains Mono';">{gear_text}</span>
+        <div class="gear-console">
+            <span class="gear-pill {'gear-active-p' if gear_mode=='P' else ''}">P</span>
             <span class="gear-pill">R</span>
-            <span class="gear-pill {gear_class_n}">N</span>
-            <span class="gear-pill {gear_class_d}">D</span>
+            <span class="gear-pill {'gear-active-n' if gear_mode=='N' else ''}">N</span>
+            <span class="gear-pill {'gear-active-d' if gear_mode=='D' else ''}">D</span>
         </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------------------------------------------
-# 3. 核心升級：TESLA 產品艦隊概念展區 (Fleet Visual Showcase)
-# ----------------------------------------------------
+# 3. Tesla 原廠純代碼向量遙測模組 (無破圖、無雜亂色調)
 diamond_count = len(df_results[df_results['Rank'] == 'Diamond']) if not df_results.empty else 0
 accum_count = len(df_results[df_results['CMF'] > 0.1]) if not df_results.empty else 0
 
-f1, f2, f3, f4 = st.columns(4)
-
-with f1:
-    st.markdown(f"""
-    <div class="fleet-card">
-        <div class="fleet-img-container">
-            <img src="https://images.unsplash.com/photo-1541348263662-e0c8de4259ba?auto=format&fit=crop&w=800&q=80" alt="Cybercab Concept">
-            <div class="fleet-overlay">
-                <span class="badge badge-tesla">CYBERCAB // ROBOTAXI</span>
-            </div>
-        </div>
-        <div class="fleet-body">
-            <div style="font-size:11px; color:#94A3B8;">角色: 領頭羊自動駕駛買點</div>
-            <div style="font-size:16px; font-weight:800; color:#22D3EE; margin-top:3px;">
-                💎 {diamond_count} 隻 鑽石領頭羊
-            </div>
-            <div style="font-size:10.5px; color:#64748B; margin-top:2px;">FSD 完全無干預巡航目標</div>
-        </div>
+st.markdown(f"""
+<div class="telemetry-deck">
+    <div class="telemetry-node">
+        <div class="telemetry-tag">⚡ CYBERCAB • FSD ALPHA</div>
+        <div class="telemetry-val" style="color:#00F0FF;">{diamond_count} <span style="font-size:13px; color:#94A3B8;">隻</span></div>
+        <div class="telemetry-sub">Stage 2 完美多頭領頭羊</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with f2:
-    st.markdown(f"""
-    <div class="fleet-card">
-        <div class="fleet-img-container">
-            <img src="https://images.unsplash.com/photo-1617788138017-80ad40651399?auto=format&fit=crop&w=800&q=80" alt="Cybertruck Armor">
-            <div class="fleet-overlay">
-                <span class="badge badge-diamond">CYBERTRUCK // 30X STEEL</span>
-            </div>
-        </div>
-        <div class="fleet-body">
-            <div style="font-size:11px; color:#94A3B8;">角色: 裝甲防守與大盤出貨日</div>
-            <div style="font-size:16px; font-weight:800; color:{'#34D399' if qqq_dist_days<5 else '#EF4444'}; margin-top:3px;">
-                {qqq_dist_days} / 25 天 出貨日
-            </div>
-            <div style="font-size:10.5px; color:#64748B; margin-top:2px;">冷軋不銹鋼 1% 止損硬裝甲</div>
-        </div>
+    <div class="telemetry-node">
+        <div class="telemetry-tag">📐 CYBERTRUCK • 30X STEEL</div>
+        <div class="telemetry-val" style="color:{'#34D399' if qqq_dist_days<5 else '#FF6B6B'};">{qqq_dist_days} / 25 <span style="font-size:13px; color:#94A3B8;">天</span></div>
+        <div class="telemetry-sub">納指主力出貨日 ({'流動性安全' if qqq_dist_days<5 else '危險派發'})</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with f3:
-    st.markdown(f"""
-    <div class="fleet-card">
-        <div class="fleet-img-container">
-            <img src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80" alt="Optimus Gen-3">
-            <div class="fleet-overlay">
-                <span class="badge badge-green">OPTIMUS // GEN-3 CORE</span>
-            </div>
-        </div>
-        <div class="fleet-body">
-            <div style="font-size:11px; color:#94A3B8;">角色: 資金面神經網絡與暗盤</div>
-            <div style="font-size:16px; font-weight:800; color:#C084FC; margin-top:3px;">
-                🔥 {accum_count} 隻 主力吸籌
-            </div>
-            <div style="font-size:10.5px; color:#64748B; margin-top:2px;">Pocket Pivot 視覺感知掃描</div>
-        </div>
+    <div class="telemetry-node">
+        <div class="telemetry-tag">🤖 OPTIMUS • NEURAL FLOW</div>
+        <div class="telemetry-val" style="color:#C084FC;">{accum_count} <span style="font-size:13px; color:#94A3B8;">隻</span></div>
+        <div class="telemetry-sub">CMF 資金吸籌 / 暗盤異動</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with f4:
-    st.markdown(f"""
-    <div class="fleet-card">
-        <div class="fleet-img-container">
-            <img src="https://images.unsplash.com/photo-1593941707882-a5bba14938c7?auto=format&fit=crop&w=800&q=80" alt="Supercharger V4">
-            <div class="fleet-overlay">
-                <span class="badge badge-supercharger">SUPERCHARGER // V4 FLOW</span>
-            </div>
-        </div>
-        <div class="fleet-body">
-            <div style="font-size:11px; color:#94A3B8;">角色: 突破動能與 RVOL 量比</div>
-            <div style="font-size:16px; font-weight:800; color:#FCD34D; margin-top:3px;">
-                ⚡ 250kW 液冷超充能量
-            </div>
-            <div style="font-size:10.5px; color:#64748B; margin-top:2px;">突破量比 RVOL 攻防比鎖定</div>
-        </div>
+    <div class="telemetry-node">
+        <div class="telemetry-tag">🔋 POWERPACK • EXPOSURE</div>
+        <div class="telemetry-val" style="color:{'#34D399' if recommended_exposure>=80 else ('#F59E0B' if recommended_exposure>=40 else '#FF6B6B')};">{recommended_exposure}%</div>
+        <div class="telemetry-sub">建議賬戶最大總曝險額</div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
-if df_results.empty:
-    st.warning("⚡ 數據正在獲取中或市場連接超時，請點擊側邊欄【重新掃描市場】。")
-    st.stop()
-
-# 警報橫幅
+# 4. 警報橫幅
 perfect_matches = df_results[df_results['All_Rules_Met'] == True] if ('All_Rules_Met' in df_results.columns) else pd.DataFrame()
 if not perfect_matches.empty:
     alert_symbols = ", ".join(perfect_matches['Symbol'].tolist())
     st.markdown(f"""
-    <div class="alert-tesla">
-        <div style="font-size:15px; font-weight:800; color:#FF4D4D;">
-            🚨 OPTIMUS 實時強勢異動觸發！完全符合 J LAW 核心買點與主力吸籌：<span style="color:#FFF; font-size:17px;">{alert_symbols}</span>
-        </div>
-        <div style="font-size:11.5px; color:#E2E8F0; margin-top:4px;">
-            達成標準：Stage 2 完美多頭 · RS ≥ 80 · 主力 CMF 淨流入 / Pocket Pivot · 距買入點 ≤ 3%！
-        </div>
+    <div class="tesla-alert">
+        🚨 <b>OPTIMUS 實時強勢異動觸發：</b> 完全符合 J LAW 7 大核心規則標的：<b style="color:#FFF;">{alert_symbols}</b>
+        （Stage 2 多頭 · RS ≥ 80 · 主力吸籌 · 距買入點 ≤ 3%）
     </div>
     """, unsafe_allow_html=True)
 
-# 導航（已拔除原生單選圓點，重構為車機觸控膠囊 Dock）
-nav_selection = st.radio(
-    "導航模式",
-    [
-        "01 // ⚡ 領頭羊機會庫 (M.E.T.A. Screener)",
-        "02 // 🌊 個股資金面異動 (Smart Money Flow)",
-        "03 // 🌐 大市宏觀與出貨日 (Market Telemetry)",
-        "04 // 🛡️ 核心持倉實戰情報 (Core Portfolio)",
-        "05 // 🔍 7 維技術診斷與畫圖圖表 (Deep Radar)",
-        "06 // 🎯 1% 風險下單與金字塔加倉 (Execution & Pyramiding)"
-    ],
-    horizontal=True,
-    label_visibility="collapsed"
-)
+# 5. 車機觸控 Dock 欄（使用 st.tabs，100% 免疫單選圓圈 bug）
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "⚡ 領頭羊即時機會庫",
+    "🌊 主力資金異動雷達",
+    "🛡️ 核心持倉實戰情報",
+    "📈 TradingView 專業畫圖",
+    "🎯 1% 下單與金字塔加倉"
+])
 
 # ----------------------------------------------------
-# 模組 1: 領頭羊即時機會庫
+# TAB 1: 領頭羊機會庫
 # ----------------------------------------------------
-if nav_selection == "01 // ⚡ 領頭羊機會庫 (M.E.T.A. Screener)":
-    st.markdown("""
-    <div class="section-header">
-        <h4 style="margin:0; color:#FFF; font-weight:800;">
-            01 // ⚡ M.E.T.A. SCREENER • J LAW 領頭羊即時機會庫
-        </h4>
-    </div>
-    """, unsafe_allow_html=True)
-
+with tab1:
     f_c1, f_c2 = st.columns([1.5, 2.5])
     with f_c1:
-        filter_tier = st.selectbox("🎯 評級篩選", ["全部評級", "只睇 💎 Diamond", "只睇 💎 Diamond + 🥇 Gold"], index=0)
+        filter_tier = st.selectbox("評級篩選：", ["全部標的", "💎 只睇 Diamond", "💎 Diamond + 🥇 Gold"], index=0)
     with f_c2:
-        only_near_entry = st.checkbox("🎯 只顯示現價距買入點 ≤ 3%（即將起爆）", value=False)
+        only_near_entry = st.checkbox("🎯 只顯示現價距離買入點 ≤ 3%（隨時起爆）", value=False)
 
     df_filtered = df_results.copy()
-    if filter_tier == "只睇 💎 Diamond":
+    if filter_tier == "💎 只睇 Diamond":
         df_filtered = df_filtered[df_filtered['Rank'] == 'Diamond']
-    elif filter_tier == "只睇 💎 Diamond + 🥇 Gold":
+    elif filter_tier == "💎 Diamond + 🥇 Gold":
         df_filtered = df_filtered[df_filtered['Rank'].isin(['Diamond', 'Gold'])]
 
     if only_near_entry:
         df_filtered = df_filtered[df_filtered['Entry_Diff'].abs() <= 3.0]
 
+    # 卡片展示
     display_cards = df_filtered.head(4)
     if not display_cards.empty:
         card_cols = st.columns(len(display_cards))
         for i, (_, row_q) in enumerate(display_cards.iterrows()):
-            b_class = "badge-diamond" if row_q['Rank'] == 'Diamond' else "badge-gold"
+            b_class = "b-diamond" if row_q['Rank'] == 'Diamond' else "b-gold"
             with card_cols[i]:
                 st.markdown(f"""
                 <div class="cyber-card">
                     <div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span class="badge {b_class}">{row_q['Rank']} TIER</span>
-                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:#38BDF8; font-size:12px;">★ {row_q['Edges']} 重優勢</span>
+                            <span style="font-family:'JetBrains Mono'; font-weight:700; color:#38BDF8; font-size:11px;">★ {row_q['Edges']} 重優勢</span>
                         </div>
                         <div style="font-size:24px; font-weight:800; font-family:'JetBrains Mono'; margin:6px 0 2px 0; color:#FFF;">
                             {row_q['Symbol']}
                         </div>
-                        <div style="font-size:15px; font-family:'JetBrains Mono'; font-weight:600; color:{'#10B981' if row_q['Change'] >= 0 else '#EF4444'};">
+                        <div style="font-size:15px; font-family:'JetBrains Mono'; font-weight:600; color:{'#34D399' if row_q['Change'] >= 0 else '#EF4444'};">
                             ${row_q['Price']:.2f} ({'+' if row_q['Change']>0 else ''}{row_q['Change']:.2f}%)
                         </div>
                         <div style="margin-top:4px;">
-                            <span class="badge badge-flow">CMF {row_q['CMF']}</span>
-                            {f'<span class="badge badge-green">POCKET PIVOT</span>' if row_q['Pocket_Pivot']=='🔥 觸發' else ''}
+                            <span class="badge b-purple">CMF {row_q['CMF']}</span>
+                            {f'<span class="badge b-green">POCKET PIVOT</span>' if row_q['Pocket_Pivot']=='🔥 觸發' else ''}
                         </div>
                     </div>
-                    <div style="margin-top:10px; font-size:11.5px; color:#CBD5E1; font-family:'JetBrains Mono'; line-height:1.6; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
+                    <div style="margin-top:10px; font-size:11px; color:#94A3B8; font-family:'JetBrains Mono'; line-height:1.6; border-top:1px solid rgba(255,255,255,0.06); padding-top:8px;">
                         型態: <span style="color:#38BDF8;">{row_q['Setup_Type']}</span><br>
-                        樞紐買點: <b style="color:#FFF;">${row_q['Entry']:.2f}</b><br>
-                        防守止損: <b style="color:#EF4444;">${row_q['Stop']:.2f} ({row_q['Stop_Pct']}%)</b>
+                        買入點: <b style="color:#FFF;">${row_q['Entry']:.2f}</b> | 止損: <b style="color:#EF4444;">${row_q['Stop']:.2f} ({row_q['Stop_Pct']}%)</b>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
 
-    with st.expander("📋 展開查看完整合格標的清單與量化指標", expanded=True):
+    with st.expander("📋 展開完整合格清單", expanded=True):
         st.dataframe(
             df_filtered[['Symbol', 'Rank', 'Score', 'Price', 'Change', 'RS', 'Flow_Status', 'CMF', 'Setup_Type', 'Entry', 'Entry_Diff', 'Stop', 'Stop_Pct', 'Target_2R', 'Target_3R']],
             use_container_width=True,
-            hide_index=True,
-            column_config=GRID_COLUMN_CONFIG
+            hide_index=True
         )
 
-    symbols_tv_format = ", ".join([f"{s}" for s in df_filtered['Symbol'].tolist()])
-    with st.expander("📤 一鍵匯出篩選結果 (TradingView / 富途牛牛 Watchlist 格式)"):
-        st.caption("複製下方代碼，可直接貼入 TradingView 自選監控列表：")
-        st.code(symbols_tv_format, language="text")
-
 # ----------------------------------------------------
-# 模組 2: 個股資金面異動
+# TAB 2: 主力資金異動
 # ----------------------------------------------------
-elif nav_selection == "02 // 🌊 個股資金面異動 (Smart Money Flow)":
-    st.markdown("""
-    <div class="section-header">
-        <h4 style="margin:0; color:#FFF; font-weight:800;">
-            🌊 SMART MONEY FLOW • 美股個股資金面異動與機構吸籌雷達
-        </h4>
-    </div>
-    """, unsafe_allow_html=True)
-
-    flow_filter = st.radio("資金異動維度快速篩選：", ["全部標的", "🔥 只睇主力強勢吸籌 (CMF > 0.15)", "⚡ 只睇觸發 Pocket Pivot (口袋買點)"], horizontal=True)
-
-    df_flow = df_results.copy()
-    if flow_filter == "🔥 只睇主力強勢吸籌 (CMF > 0.15)":
-        df_flow = df_flow[df_flow['CMF'] > 0.15]
-    elif flow_filter == "⚡ 只睇觸發 Pocket Pivot (口袋買點)":
-        df_flow = df_flow[df_flow['Pocket_Pivot'] == "🔥 觸發"]
-
+with tab2:
+    st.markdown("#### 🌊 美股主力資金異動與暗盤偷步雷達")
     st.dataframe(
-        df_flow[['Symbol', 'Price', 'Change', 'Flow_Status', 'CMF', 'Pocket_Pivot', 'UpDown_Ratio', 'RVOL', 'RS', 'Score', 'Setup_Type']],
+        df_results[['Symbol', 'Price', 'Change', 'Flow_Status', 'CMF', 'Pocket_Pivot', 'RVOL', 'RS', 'Score', 'Setup_Type']],
         use_container_width=True,
-        hide_index=True,
-        column_config={
-            "Symbol": st.column_config.TextColumn("代碼"),
-            "Price": st.column_config.NumberColumn("最新價 ($)", format="$%.2f"),
-            "Change": st.column_config.NumberColumn("今日漲跌 (%)", format="%.2f%%"),
-            "Flow_Status": st.column_config.TextColumn("主力資金狀態"),
-            "CMF": st.column_config.NumberColumn("20D 蔡金資金流", format="%.2f"),
-            "Pocket_Pivot": st.column_config.TextColumn("Pocket Pivot 口袋買點"),
-            "UpDown_Ratio": st.column_config.NumberColumn("50D 多空量能比", format="%.2fx"),
-            "RVOL": st.column_config.NumberColumn("量比", format="%.2fx"),
-            "RS": st.column_config.ProgressColumn("RS 強度", min_value=1, max_value=99, format="%d"),
-            "Score": st.column_config.ProgressColumn("J Law 評分", min_value=0, max_value=100, format="%d"),
-            "Setup_Type": st.column_config.TextColumn("型態")
-        }
+        hide_index=True
     )
 
 # ----------------------------------------------------
-# 模組 3: 大市宏觀與主力出貨日
+# TAB 3: 核心自選情報
 # ----------------------------------------------------
-elif nav_selection == "03 // 🌐 大市宏觀與出貨日 (Market Telemetry)":
-    st.markdown("""
-    <div class="section-header">
-        <h4 style="margin:0; color:#FFF; font-weight:800;">
-            🌐 每日大市宏觀體檢 • 主力出貨日 (Distribution Days) 與電池總曝險計
-        </h4>
-        <div style="font-size:12px; color:#94A3B8; margin-top:2px;">
-            J Law / 歐奈爾法則：大盤 25 天內若累積 >5 個出貨日（跌 >0.2% 且放量），代表主力正在出逃，強制防守。
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    dist_col1, dist_col2, dist_col3 = st.columns(3)
-    with dist_col1:
-        st.markdown(f"""
-        <div class="cyber-card" style="min-height:auto; border-left:4px solid {'#EF4444' if qqq_dist_days>=5 else '#10B981'};">
-            <div style="font-size:11px; color:#94A3B8; font-family:'JetBrains Mono';">QQQ 納指主力出貨日 (25D)</div>
-            <div style="font-size:26px; font-weight:900; color:{'#EF4444' if qqq_dist_days>=5 else '#34D399'}; font-family:'JetBrains Mono'; margin-top:4px;">
-                {qqq_dist_days} 天 <span style="font-size:12px; color:#94A3B8;">{'(危險！主力派發中)' if qqq_dist_days>=5 else '(安全)'}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with dist_col2:
-        st.markdown(f"""
-        <div class="cyber-card" style="min-height:auto; border-left:4px solid {'#EF4444' if spy_dist_days>=5 else '#10B981'};">
-            <div style="font-size:11px; color:#94A3B8; font-family:'JetBrains Mono';">SPY 標普主力出貨日 (25D)</div>
-            <div style="font-size:26px; font-weight:900; color:{'#EF4444' if spy_dist_days>=5 else '#34D399'}; font-family:'JetBrains Mono'; margin-top:4px;">
-                {spy_dist_days} 天 <span style="font-size:12px; color:#94A3B8;">{'(拋壓沉重)' if spy_dist_days>=5 else '(安全)'}</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    with dist_col3:
-        st.markdown(f"""
-        <div class="cyber-card" style="min-height:auto; border-left:4px solid {'#10B981' if recommended_exposure>=80 else ('#F59E0B' if recommended_exposure>=40 else '#EF4444')};">
-            <div style="font-size:11px; color:#94A3B8; font-family:'JetBrains Mono';">🔋 BATTERY 建議總持倉上限</div>
-            <div style="font-size:26px; font-weight:900; color:{'#34D399' if recommended_exposure>=80 else ('#FACC15' if recommended_exposure>=40 else '#EF4444')}; font-family:'JetBrains Mono'; margin-top:4px;">
-                {recommended_exposure}% <span style="font-size:12px; color:#94A3B8;">(檔位: {gear_text[:1]})</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.write("")
-    dia_df = indexes.get('DIA')
-    col_idx1, col_idx2, col_idx3 = st.columns(3)
-
-    def display_index_panel(sym, title, df, col):
-        if df is None or len(df) < 50:
-            col.info(f"{sym} 數據加載中...")
-            return
-        c = df['Close']
-        curr, prev = float(c.iloc[-1]), float(c.iloc[-2])
-        chg = ((curr - prev) / prev) * 100
-        ema20 = float(c.ewm(span=20, adjust=False).mean().iloc[-1])
-        sma50 = float(c.rolling(50).mean().iloc[-1])
-        sma200 = float(c.rolling(200).mean().iloc[-1]) if len(c) >= 200 else sma50
-        atr14 = float((df['High'] - df['Low']).rolling(14).mean().iloc[-1])
-        r1, s1 = curr + atr14, curr - atr14
-        status_tag = "Stage 2 多頭" if curr > ema20 and ema20 > sma50 else "測試支撐"
-        b_color = "badge-green" if curr > ema20 else "badge-gold"
-
-        with col:
-            st.markdown(f"""
-            <div class="cyber-card" style="min-height:auto;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-weight:800; font-size:16px; color:#FFF;">{sym} · {title}</span>
-                    <span class="badge {b_color}">{status_tag}</span>
-                </div>
-                <div style="font-size:26px; font-weight:800; font-family:'JetBrains Mono'; margin:8px 0; color:#FFF;">
-                    ${curr:.2f} <span style="font-size:15px; color:{'#10B981' if chg>=0 else '#EF4444'};">({'+' if chg>=0 else ''}{chg:.2f}%)</span>
-                </div>
-                <div style="font-size:12px; color:#94A3B8; font-family:'JetBrains Mono'; line-height:1.7;">
-                    • 20 EMA: <b style="color:#FFF;">${ema20:.2f}</b><br>
-                    • 50 SMA: <b style="color:#FFF;">${sma50:.2f}</b> | 200 SMA: <b style="color:#FFF;">${sma200:.2f}</b><br>
-                    • 阻力 (R1): <b style="color:#38BDF8;">${r1:.2f}</b> | 支撐 (S1): <b style="color:#EF4444;">${s1:.2f}</b>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-    display_index_panel("QQQ", "納斯達克 100", qqq_df, col_idx1)
-    display_index_panel("SPY", "標普 500", spy_df, col_idx2)
-    display_index_panel("DIA", "道瓊斯工業", dia_df, col_idx3)
-
-# ----------------------------------------------------
-# 模組 4: 核心持倉實戰情報
-# ----------------------------------------------------
-elif nav_selection == "04 // 🛡️ 核心持倉實戰情報 (Core Portfolio)":
-    st.markdown("""
-    <div class="section-header">
-        <h4 style="margin:0; color:#FFF; font-weight:800;">
-            🛡️ 核心持倉實戰情報 (TSLA · AAOI · NVDA · MU · BE · NBIS · DDOG)
-        </h4>
-    </div>
-    """, unsafe_allow_html=True)
-
+with tab3:
+    st.markdown("#### 🛡️ 核心持倉實戰情報 (TSLA · AAOI · NVDA · MU · BE · NBIS · DDOG)")
     df_core = df_results[df_results['Symbol'].isin(CORE_PORTFOLIO_SYMBOLS)].copy()
-    if not df_core.empty:
-        st.dataframe(
-            df_core[['Symbol', 'Rank', 'Price', 'Change', 'RS', 'Score', 'Flow_Status', 'Setup_Type', 'Entry', 'Entry_Diff', 'Stop', 'Stop_Pct', 'Target_2R', 'Target_3R', 'RVOL']],
-            use_container_width=True,
-            hide_index=True,
-            column_config=GRID_COLUMN_CONFIG
-        )
+    st.dataframe(
+        df_core[['Symbol', 'Rank', 'Price', 'Change', 'RS', 'Score', 'Flow_Status', 'Setup_Type', 'Entry', 'Entry_Diff', 'Stop', 'Stop_Pct', 'Target_2R', 'Target_3R']],
+        use_container_width=True,
+        hide_index=True
+    )
 
 # ----------------------------------------------------
-# 模組 5: 7 維技術診斷與專業畫圖
+# TAB 4: TradingView 專業畫圖 (帶 7 維檢核)
 # ----------------------------------------------------
-elif nav_selection == "05 // 🔍 7 維技術診斷與畫圖圖表 (Deep Radar)":
-    st.markdown("""
-    <div class="section-header">
-        <h4 style="margin:0; color:#FFF; font-weight:800;">
-            05 // 🔍 DEEP RADAR • 7 維技術形態診斷與 TRADINGVIEW 專業畫圖圖表
-        </h4>
-    </div>
-    """, unsafe_allow_html=True)
-
-    selected_stock = st.selectbox("🎯 選擇要深度診斷的標的：", df_results['Symbol'].tolist(), index=0)
+with tab4:
+    selected_stock = st.selectbox("選擇要分析的標的：", df_results['Symbol'].tolist(), index=0)
     stock_row = df_results[df_results['Symbol'] == selected_stock].iloc[0]
 
-    c_r1, c_r2 = st.columns([1.05, 1.95])
-
+    c_r1, c_r2 = st.columns([1.1, 1.9])
     with c_r1:
-        st.markdown(f"#### 📋 **{selected_stock}** J Law 7 維檢核")
+        st.markdown(f"##### 📋 **{selected_stock}** J Law 7 維檢核")
         checklist = [
-            ("1. Stage 2 趨勢範式", stock_row['Stage2'] == "符合", "股價 > 50SMA > 150SMA > 200SMA，均線多頭。"),
-            ("2. RS 領頭羊地位 (≥80)", stock_row['RS'] >= 80, f"當前 RS 為 {stock_row['RS']} 分，跑贏市場 80% 以上股票。"),
-            ("3. VCP 波動收窄蓄勢", any("VCP" in r for r in stock_row['Reasons']), "ATR 波幅收斂，籌碼在樞紐區沉澱。"),
-            ("4. 主力資金與 Pocket Pivot", stock_row['CMF'] > 0.05 or stock_row['Pocket_Pivot'] == "🔥 觸發", f"CMF 為 {stock_row['CMF']}，狀態：{stock_row['Flow_Status']}。"),
-            ("5. 20 EMA 動態支撐", abs(stock_row['Dist_20EMA']) <= 3.0, f"距 20 EMA 僅 {stock_row['Dist_20EMA']}%，處於黃金回踩區。"),
-            ("6. 量能蓄勢與突破", stock_row['RVOL'] >= 1.2 or stock_row['RVOL'] < 0.8, f"相對量比 (RVOL) 為 {stock_row['RVOL']}x。"),
-            ("7. 結構點位設定", True, f"型態為「{stock_row['Setup_Type']}」，規劃買點 ${stock_row['Entry']:.2f}。")
+            ("1. Stage 2 趨勢範式", stock_row['Stage2'] == "符合", "股價 > 50SMA > 150SMA > 200SMA。"),
+            ("2. RS 領頭羊地位 (≥80)", stock_row['RS'] >= 80, f"當前 RS 為 {stock_row['RS']} 分。"),
+            ("3. VCP 波動收窄蓄勢", any("VCP" in r for r in stock_row['Reasons']), "ATR 收斂，主力鎖倉。"),
+            ("4. 主力資金與口袋買點", stock_row['CMF'] > 0.05 or stock_row['Pocket_Pivot'] == "🔥 觸發", f"CMF: {stock_row['CMF']}，狀態: {stock_row['Flow_Status']}。"),
+            ("5. 20 EMA 動態支撐", abs(stock_row['Dist_20EMA']) <= 3.0, f"距 20 EMA 僅 {stock_row['Dist_20EMA']}%。"),
+            ("6. 量能蓄勢與突破", stock_row['RVOL'] >= 1.2 or stock_row['RVOL'] < 0.8, f"量比 (RVOL) 為 {stock_row['RVOL']}x。"),
+            ("7. 結構點位設定", True, f"規劃買點 ${stock_row['Entry']:.2f}。")
         ]
         for title, passed, desc in checklist:
             s_icon = "✅" if passed else "⚠️"
             b_color = "#10B981" if passed else "#F59E0B"
             st.markdown(f"""
-            <div style="background:rgba(14, 19, 31, 0.85); border-left:3px solid {b_color}; padding:8px 12px; margin-bottom:8px; border-radius:4px;">
-                <div style="font-weight:700; color:#FFF; font-size:13px;">{s_icon} {title}</div>
-                <div style="font-size:11.5px; color:#94A3B8; margin-top:2px;">{desc}</div>
+            <div style="background:#0C0F17; border-left:3px solid {b_color}; padding:6px 10px; margin-bottom:6px; border-radius:2px;">
+                <div style="font-weight:700; color:#FFF; font-size:12px;">{s_icon} {title}</div>
+                <div style="font-size:11px; color:#94A3B8;">{desc}</div>
             </div>
             """, unsafe_allow_html=True)
 
     with c_r2:
         tv_code = f"""
-        <div class="tradingview-widget-container" style="height:550px;width:100%;">
-          <div id="tv_advanced_{selected_stock}" style="height:calc(100% - 32px);width:100%;"></div>
+        <div class="tradingview-widget-container" style="height:480px;width:100%;">
+          <div id="tv_{selected_stock}" style="height:calc(100% - 32px);width:100%;"></div>
           <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
           <script type="text/javascript">
           new TradingView.widget({{
@@ -1087,161 +686,49 @@ elif nav_selection == "05 // 🔍 7 維技術診斷與畫圖圖表 (Deep Radar)"
             "locale": "zh_TW",
             "toolbar_bg": "#0B0E14",
             "enable_publishing": false,
-            "hide_top_toolbar": false,
             "hide_side_toolbar": false,
             "allow_symbol_change": true,
-            "save_image": true,
-            "withdateranges": true,
-            "studies": [
-              "MASimple@tv-basicstudies",
-              "EMA@tv-basicstudies"
-            ],
-            "container_id": "tv_advanced_{selected_stock}"
+            "container_id": "tv_{selected_stock}"
           }});
           </script>
         </div>
         """
-        components.html(tv_code, height=560)
+        components.html(tv_code, height=490)
 
 # ----------------------------------------------------
-# 模組 6: 1% 風險下單與金字塔加倉
+# TAB 5: 1% 風險下單與金字塔加倉
 # ----------------------------------------------------
-elif nav_selection == "06 // 🎯 1% 風險下單與金字塔加倉 (Execution & Pyramiding)":
-    st.markdown("""
-    <div class="section-header">
-        <h4 style="margin:0; color:#FFF; font-weight:800;">
-            06 // 🎯 EXECUTION & PYRAMIDING • 1% 倉位精算與 J LAW 冠軍金字塔加倉引擎
-        </h4>
-    </div>
-    """, unsafe_allow_html=True)
-
-    target_calc_sym = st.selectbox("選擇計算下單標的：", df_results['Symbol'].tolist(), index=0)
+with tab5:
+    target_calc_sym = st.selectbox("選擇計算下單標的：", df_results['Symbol'].tolist(), index=0, key="calc_box")
     stock_row = df_results[df_results['Symbol'] == target_calc_sym].iloc[0]
 
-    inp_c1, inp_c2, inp_c3 = st.columns(3)
+    inp_c1, inp_c2 = st.columns(2)
     with inp_c1:
-        account_capital = st.number_input("賬戶總資產 ($)", min_value=1000, max_value=10000000, value=50000, step=5000)
+        account_capital = st.number_input("賬戶總資產 ($)", value=50000, step=5000)
     with inp_c2:
-        risk_pct = st.slider("單筆最大承受風險 (%)", min_value=0.5, max_value=2.5, value=1.0, step=0.1)
-    with inp_c3:
-        max_pos_cap = st.slider("單一持倉上限 (%)", min_value=10, max_value=40, value=25, step=5)
+        risk_pct = st.slider("單筆最大承受風險 (%)", 0.5, 2.5, 1.0, 0.1)
 
     max_risk_dollars = account_capital * (risk_pct / 100.0)
     target_entry = stock_row['Entry']
     target_stop = stock_row['Stop']
     target_risk_per_share = stock_row['Risk_Per_Share']
-    target_stop_pct = stock_row['Stop_Pct']
-    target_2r = stock_row['Target_2R']
-    target_3r = stock_row['Target_3R']
-
     calc_shares = int(max_risk_dollars / target_risk_per_share) if target_risk_per_share > 0 else 0
-    total_pos_cost = calc_shares * target_entry
-    max_allowed_cost = account_capital * (max_pos_cap / 100.0)
-    
-    adj_msg = ""
-    if total_pos_cost > max_allowed_cost:
-        calc_shares = int(max_allowed_cost / target_entry)
-        total_pos_cost = calc_shares * target_entry
-        adj_msg = f"⚠️ 受限於持倉上限 ({max_pos_cap}%)，股數已自動限制為安全額度。"
 
-    pos_pct_of_capital = (total_pos_cost / account_capital) * 100
-
-    plan_c1, plan_c2 = st.columns(2)
-
-    with plan_c1:
-        st.markdown(f"""
-        <div class="action-box">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h4 style="margin:0; color:#38BDF8;">🎯 {target_calc_sym} 結構進出場點位</h4>
-                <span class="badge badge-tesla">{stock_row['Setup_Type']}</span>
-            </div>
-            <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
-                <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:6px;">
-                    <span style="color:#94A3B8; font-size:11.5px;">🔵 樞紐進場 (Entry):</span><br>
-                    <b style="font-size:20px; color:#38BDF8;">${target_entry:.2f}</b><br>
-                    <span style="font-size:10.5px; color:#CBD5E1;">現價: ${stock_row['Price']:.2f}</span>
-                </div>
-                <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:6px;">
-                    <span style="color:#94A3B8; font-size:11.5px;">🔴 結構止損 (Stop):</span><br>
-                    <b style="font-size:20px; color:#EF4444;">${target_stop:.2f} ({target_stop_pct}%)</b><br>
-                    <span style="font-size:10.5px; color:#EF4444;">每股風險: ${target_risk_per_share:.2f}</span>
-                </div>
-                <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:6px;">
-                    <span style="color:#94A3B8; font-size:11.5px;">🟢 趁強賣出 (2R 鎖利):</span><br>
-                    <b style="font-size:20px; color:#10B981;">${target_2r:.2f}</b><br>
-                    <span style="font-size:10.5px; color:#6EE7B7;">平半倉 + 止損移至成本</span>
-                </div>
-                <div style="background:rgba(255,255,255,0.04); padding:10px; border-radius:6px;">
-                    <span style="color:#94A3B8; font-size:11.5px;">🌟 趁弱賣出 (3R+ 移停):</span><br>
-                    <b style="font-size:20px; color:#F59E0B;">${target_3r:.2f}</b><br>
-                    <span style="font-size:10.5px; color:#FCD34D;">沿 20 EMA 騎乘主升浪</span>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    with plan_c2:
-        st.markdown(f"""
-        <div class="action-box" style="border-color: rgba(16, 185, 129, 0.4);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h4 style="margin:0; color:#10B981;">🛡️ 1% 風險倉位精算</h4>
-                <span class="badge badge-green">風控鎖定</span>
-            </div>
-            <div style="line-height:1.9; font-size:13.5px;">
-                • 賬戶總額: <b>${account_capital:,.2f}</b><br>
-                • 最大承擔虧損 (1R): <b style="color:#EF4444;">${max_risk_dollars:,.2f}</b> ({risk_pct}%)<br>
-                • 每股承擔風險: <b>${target_risk_per_share:.2f}</b><br>
-                <hr style="border:0; border-top:1px solid rgba(255,255,255,0.08); margin:8px 0;">
-                • <b>推薦進場股數:</b> <span style="font-size:22px; color:#10B981; font-weight:800;">{calc_shares} 股</span><br>
-                • <b>預計持倉成本:</b> <b>${total_pos_cost:,.2f}</b> ({pos_pct_of_capital:.1f}% 倉位)<br>
-                • <b>觸發止損總虧損:</b> <b style="color:#EF4444;">-${calc_shares * target_risk_per_share:,.2f}</b>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if adj_msg:
-        st.info(adj_msg)
+    st.markdown(f"""
+    <div style="background:#0C0F17; border-left:3px solid #10B981; padding:14px; border-radius:4px; font-family:'JetBrains Mono'; font-size:13px; line-height:2.0; margin-top:10px;">
+        <div style="font-weight:800; color:#FFF; font-size:15px; margin-bottom:6px;">🛡️ OPTIMUS 1% 風控執行指令</div>
+        • 推薦買入股數: <b style="color:#10B981; font-size:20px;">{calc_shares} 股</b><br>
+        • 樞紐買點 (Limit): <b>${target_entry:.2f}</b> | 條件止損 (Stop): <b style="color:#EF4444;">${target_stop:.2f} ({stock_row['Stop_Pct']}%)</b><br>
+        • 趁強賣出 (2R 平半): <b style="color:#38BDF8;">${stock_row['Target_2R']:.2f}</b> (平 {calc_shares // 2} 股) | 趁弱移停 (3R): <b style="color:#F59E0B;">${stock_row['Target_3R']:.2f}</b>
+    </div>
+    """, unsafe_allow_html=True)
 
     st.write("")
-    st.markdown("#### ⚡ J Law 右側金字塔加倉模型 (Pyramiding Execution Plan)")
+    st.markdown("##### ⚡ J Law 冠軍右側金字塔加倉計劃")
     base_shares = int(calc_shares * 0.5)
     add1_shares = int(calc_shares * 0.3)
     add2_shares = int(calc_shares * 0.2)
-    add1_est_price = round(target_entry * 1.04, 2)
-    add2_est_price = round(target_entry * 1.08, 2)
-    avg_price_after_add1 = round(((base_shares * target_entry) + (add1_shares * add1_est_price)) / (base_shares + add1_shares), 2) if (base_shares + add1_shares) > 0 else 0
-
-    p_col1, p_col2, p_col3 = st.columns(3)
-    with p_col1:
-        st.markdown(f"""
-        <div style="background:rgba(14,19,31,0.85); border:1px solid rgba(255,255,255,0.08); padding:12px; border-radius:6px;">
-            <span class="badge badge-cyan">第 1 注：底倉 (50%)</span>
-            <div style="font-size:18px; font-weight:800; color:#FFF; margin:6px 0;">{base_shares} 股 @ ${target_entry:.2f}</div>
-            <div style="font-size:11.5px; color:#94A3B8;">初始結構買點進場，止損設在 ${target_stop:.2f}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with p_col2:
-        st.markdown(f"""
-        <div style="background:rgba(14,19,31,0.85); border:1px solid rgba(255,255,255,0.08); padding:12px; border-radius:6px;">
-            <span class="badge badge-gold">第 2 注：次級加倉 (30%)</span>
-            <div style="font-size:18px; font-weight:800; color:#FFF; margin:6px 0;">{add1_shares} 股 @ ~${add1_est_price:.2f}</div>
-            <div style="font-size:11.5px; color:#94A3B8;">底倉浮盈時加碼，加倉後均價約 ${avg_price_after_add1:.2f}，止損上移至保本價</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with p_col3:
-        st.markdown(f"""
-        <div style="background:rgba(14,19,31,0.85); border:1px solid rgba(255,255,255,0.08); padding:12px; border-radius:6px;">
-            <span class="badge badge-green">第 3 注：主升追加 (20%)</span>
-            <div style="font-size:18px; font-weight:800; color:#FFF; margin:6px 0;">{add2_shares} 股 @ ~${add2_est_price:.2f}</div>
-            <div style="font-size:11.5px; color:#94A3B8;">確認龍頭地位，全倉改為 10/20 EMA 移動止損</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.write("")
-    order_script = (
-        f"【富途 / IB 下單草稿 - {target_calc_sym}】\n"
-        f"買入指令: 限價單 (Limit) @ ${target_entry:.2f} | 數量: {calc_shares} 股\n"
-        f"條件止損: 止損單 (Stop Loss) @ ${target_stop:.2f}\n"
-        f"止盈目標: 2R 趁強平半 @ ${target_2r:.2f} (半倉: {calc_shares // 2} 股) | 3R 移停 @ ${target_3r:.2f}"
-    )
-    st.text_area("📋 券商下單指令草稿 (可直接複製至交易筆記或券商下單窗口)", value=order_script, height=105)
+    p1, p2, p3 = st.columns(3)
+    p1.info(f"第 1 注 (50% 底倉): {base_shares} 股 @ ${target_entry:.2f}")
+    p2.warning(f"第 2 注 (30% 次注): {add1_shares} 股 @ ~${round(target_entry*1.04, 2)} (浮盈加碼，止損移至保本)")
+    p3.success(f"第 3 注 (20% 主升): {add2_shares} 股 @ ~${round(target_entry*1.08, 2)} (沿 20 EMA 移動止損)")
