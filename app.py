@@ -7,7 +7,7 @@ import requests
 import datetime
 
 # ==========================================
-# 0. 系統核心配置 (必須置於首行)
+# 0. 系統核心配置
 # ==========================================
 st.set_page_config(
     page_title="TESLA CYBER TERMINAL • J LAW ALPHA",
@@ -17,137 +17,174 @@ st.set_page_config(
 )
 
 # ==========================================
-# 1. 旗艦級 Tesla Cyber UI 注入 (免疫轉義異常)
+# 1. 頂級 TESLA CYBERCAB & CYBERTRUCK 車機 OS 視覺引擎
 # ==========================================
-def inject_tesla_cyber_ui():
+def inject_tesla_experience_ui():
     cyber_bg = "https://images.unsplash.com/photo-1544829099-b9a0c07fad1a?auto=format&fit=crop&w=2600&q=80"
-    css_template = """
+    
+    st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800;900&family=Space+Grotesk:wght@400;600;700;800&family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-        .block-container {
-            padding-top: 1.2rem !important;
-            padding-bottom: 2.5rem !important;
+        /* 全局 OLED 黑色底盤與外框 */
+        .block-container {{
+            padding-top: 1rem !important;
+            padding-bottom: 2rem !important;
             max-width: 98.5% !important;
-        }
+        }}
 
-        .stApp {
-            background: linear-gradient(180deg, rgba(6, 8, 14, 0.94) 0%, rgba(9, 12, 19, 0.98) 100%),
-                        url('__CYBER_BG__') no-repeat center center fixed !important;
+        .stApp {{
+            background: 
+                radial-gradient(circle at 50% -10%, rgba(232, 33, 39, 0.18) 0%, transparent 60%),
+                linear-gradient(180deg, rgba(6, 8, 14, 0.96) 0%, rgba(8, 11, 18, 0.99) 100%),
+                url('{cyber_bg}') no-repeat center center fixed !important;
             background-size: cover !important;
             color: #E2E8F0;
-            font-family: 'Inter', -apple-system, sans-serif;
-        }
+            font-family: 'Space Grotesk', -apple-system, sans-serif;
+        }}
 
-        section[data-testid="stSidebar"] {
-            background: rgba(8, 11, 18, 0.96) !important;
-            backdrop-filter: blur(24px);
+        /* 側邊欄：消光冷軋不銹鋼質感 */
+        section[data-testid="stSidebar"] {{
+            background: rgba(8, 11, 18, 0.98) !important;
+            backdrop-filter: blur(30px);
             border-right: 1px solid rgba(255, 255, 255, 0.08);
-        }
+            box-shadow: 10px 0 30px rgba(0, 0, 0, 0.8);
+        }}
 
-        .tesla-cluster-banner {
-            background: linear-gradient(90deg, rgba(14, 19, 30, 0.92) 0%, rgba(19, 25, 38, 0.85) 100%);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-top: 3px solid #E82127;
+        /* Tesla 貫穿式 Cyber Horizon 燈帶 */
+        .cyber-lightbar {{
+            height: 3px;
+            width: 100%;
+            background: linear-gradient(90deg, transparent 0%, #E82127 25%, #FFF 50%, #E82127 75%, transparent 100%);
+            box-shadow: 0 0 16px #E82127, 0 0 30px rgba(232, 33, 39, 0.6);
+            border-radius: 2px;
+            margin-bottom: 12px;
+            animation: lightbar-pulse 3s infinite ease-in-out;
+        }}
+        @keyframes lightbar-pulse {{
+            0%, 100% {{ opacity: 0.8; filter: drop-shadow(0 0 8px #E82127); }}
+            50% {{ opacity: 1; filter: drop-shadow(0 0 18px #FF4D4D); }}
+        }}
+
+        /* Tesla 車機頂部狀態控制中樞 */
+        .tesla-cockpit-bar {{
+            background: rgba(14, 18, 28, 0.88);
+            border: 1px solid rgba(255, 255, 255, 0.09);
             border-radius: 8px;
             padding: 14px 22px;
             margin-bottom: 14px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            backdrop-filter: blur(16px);
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
-        }
+            backdrop-filter: blur(20px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+        }}
 
-        .tesla-gear-box {
+        /* Tesla PRND 屏幕觸控換檔模塊 (Cybertruck & Model 3 Highland 規格) */
+        .tesla-gear-console {{
             display: inline-flex;
-            background: rgba(4, 6, 11, 0.9);
+            background: #05070B;
             border: 1px solid rgba(255, 255, 255, 0.12);
             border-radius: 6px;
-            padding: 3px 6px;
+            padding: 3px;
             gap: 4px;
             font-family: 'JetBrains Mono', monospace;
             font-weight: 900;
             font-size: 13px;
-        }
-        .gear-item {
-            padding: 4px 10px;
+        }}
+        .gear-pill {{
+            padding: 5px 12px;
             border-radius: 4px;
             color: #475569;
-        }
-        .gear-active-drive {
+            transition: all 0.2s ease;
+        }}
+        .gear-active-drive {{
             background: #10B981 !important;
-            color: #05070A !important;
+            color: #000 !important;
             box-shadow: 0 0 14px rgba(16, 185, 129, 0.8);
-        }
-        .gear-active-neutral {
+        }}
+        .gear-active-neutral {{
             background: #F59E0B !important;
-            color: #05070A !important;
+            color: #000 !important;
             box-shadow: 0 0 14px rgba(245, 158, 11, 0.8);
-        }
-        .gear-active-park {
+        }}
+        .gear-active-park {{
             background: #E82127 !important;
-            color: #FFFFFF !important;
+            color: #FFF !important;
             box-shadow: 0 0 16px rgba(232, 33, 39, 0.85);
-        }
+        }}
 
-        div[role="radiogroup"] {
+        /* 徹底根除 Streamlit 原生單選圓點，重構為車機 Dock 欄 */
+        div[data-testid="stRadio"] > div {{
             display: flex !important;
+            flex-direction: row !important;
             flex-wrap: wrap !important;
             gap: 8px !important;
-            background: rgba(11, 15, 25, 0.85) !important;
+            background: rgba(12, 16, 26, 0.85) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
             padding: 6px 8px !important;
             border-radius: 8px !important;
-            border: 1px solid rgba(255, 255, 255, 0.08) !important;
             margin-bottom: 16px !important;
-        }
-        div[role="radiogroup"] > label {
-            background: rgba(18, 24, 38, 0.6) !important;
-            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }}
+        div[data-testid="stRadio"] label {{
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: rgba(18, 24, 38, 0.65) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
             border-radius: 6px !important;
             padding: 8px 16px !important;
+            margin: 0 !important;
             color: #94A3B8 !important;
             cursor: pointer !important;
-            transition: all 0.2s ease !important;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
             font-family: 'JetBrains Mono', monospace !important;
             font-size: 12px !important;
             font-weight: 700 !important;
-        }
-        div[role="radiogroup"] > label:hover {
-            border-color: rgba(232, 33, 39, 0.6) !important;
-            color: #FFFFFF !important;
-        }
-        div[role="radiogroup"] input[type="radio"] {
+        }}
+        /* 100% 隱藏原生圓圈與 Input */
+        div[data-testid="stRadio"] label input {{
             display: none !important;
-        }
-        div[role="radiogroup"] > label:has(input:checked) {
-            background: linear-gradient(135deg, rgba(232, 33, 39, 0.35) 0%, rgba(18, 24, 38, 0.98) 100%) !important;
+        }}
+        div[data-testid="stRadio"] label > div:first-child {{
+            display: none !important;
+        }}
+        div[data-testid="stRadio"] label:hover {{
             border-color: #E82127 !important;
             color: #FFFFFF !important;
-            box-shadow: 0 0 16px rgba(232, 33, 39, 0.45) !important;
-        }
+            background: rgba(232, 33, 39, 0.15) !important;
+        }}
+        div[data-testid="stRadio"] label:has(input:checked) {{
+            background: linear-gradient(135deg, #E82127 0%, #B31419 100%) !important;
+            color: #FFFFFF !important;
+            border-color: #FF4D4D !important;
+            box-shadow: 0 0 16px rgba(232, 33, 39, 0.5) !important;
+        }}
 
-        .cyber-card {
-            background: rgba(13, 17, 28, 0.85);
-            backdrop-filter: blur(16px);
+        /* Cybertruck 幾何裝甲切角卡片 */
+        .cyber-card {{
+            background: linear-gradient(145deg, rgba(16, 21, 33, 0.88) 0%, rgba(10, 14, 23, 0.95) 100%);
+            backdrop-filter: blur(18px);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-radius: 8px;
             padding: 16px 18px;
             margin-bottom: 12px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
             transition: all 0.25s ease;
-            min-height: 215px;
+            min-height: 220px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-        }
-        .cyber-card:hover {
+            position: relative;
+        }}
+        .cyber-card:hover {{
             border-color: #E82127;
-            box-shadow: 0 12px 30px rgba(232, 33, 39, 0.25);
+            box-shadow: 0 14px 35px rgba(232, 33, 39, 0.3);
             transform: translateY(-2px);
-        }
+        }}
 
-        .badge {
+        /* Tesla 專屬徽章 (絕對鎖定單行) */
+        .badge {{
             display: inline-flex;
             align-items: center;
             white-space: nowrap !important;
@@ -157,52 +194,56 @@ def inject_tesla_cyber_ui():
             font-weight: 800;
             font-family: 'JetBrains Mono', monospace;
             letter-spacing: 0.5px;
-        }
-        .badge-diamond { background: rgba(6, 182, 212, 0.2); color: #22D3EE; border: 1px solid #06B6D4; }
-        .badge-gold { background: rgba(234, 179, 8, 0.2); color: #FACC15; border: 1px solid #EAB308; }
-        .badge-green { background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid #10B981; }
-        .badge-red { background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid #EF4444; }
-        .badge-tesla { background: rgba(232, 33, 39, 0.25); color: #FF6B6B; border: 1px solid #E82127; }
-        .badge-flow { background: rgba(168, 85, 247, 0.2); color: #C084FC; border: 1px solid #A855F7; }
+        }}
+        .badge-diamond {{ background: rgba(6, 182, 212, 0.2); color: #22D3EE; border: 1px solid #06B6D4; }}
+        .badge-gold {{ background: rgba(234, 179, 8, 0.2); color: #FACC15; border: 1px solid #EAB308; }}
+        .badge-green {{ background: rgba(16, 185, 129, 0.2); color: #34D399; border: 1px solid #10B981; }}
+        .badge-red {{ background: rgba(239, 68, 68, 0.2); color: #F87171; border: 1px solid #EF4444; }}
+        .badge-tesla {{ background: rgba(232, 33, 39, 0.25); color: #FF6B6B; border: 1px solid #E82127; }}
+        .badge-flow {{ background: rgba(168, 85, 247, 0.2); color: #C084FC; border: 1px solid #A855F7; }}
+        .badge-supercharger {{ background: rgba(245, 158, 11, 0.2); color: #FCD34D; border: 1px solid #F59E0B; }}
 
-        .hud-telemetry {
-            background: rgba(11, 15, 24, 0.85);
+        /* Tesla HUD 數據磚 */
+        .hud-telemetry {{
+            background: rgba(12, 16, 26, 0.85);
             border: 1px solid rgba(255, 255, 255, 0.08);
             border-left: 3px solid #E82127;
             border-radius: 6px;
             padding: 12px 16px;
-        }
-        .hud-title {
+        }}
+        .hud-title {{
             font-size: 10.5px;
             color: #94A3B8;
             font-family: 'JetBrains Mono', monospace;
             letter-spacing: 1px;
-        }
-        .hud-val {
+            text-transform: uppercase;
+        }}
+        .hud-val {{
             font-size: 24px;
             font-weight: 900;
             color: #FFFFFF;
             font-family: 'JetBrains Mono', monospace;
             margin-top: 4px;
-        }
+        }}
 
-        .section-header {
+        .section-header {{
             background: rgba(13, 17, 28, 0.9);
             border-left: 4px solid #E82127;
             padding: 12px 18px;
             border-radius: 6px;
             margin-bottom: 14px;
-        }
-        .action-box {
+        }}
+        .action-box {{
             background: rgba(8, 12, 20, 0.95);
             border: 1px solid rgba(232, 33, 39, 0.35);
             border-radius: 8px;
             padding: 18px;
             font-family: 'JetBrains Mono', monospace;
-        }
+        }}
 
-        div.stButton > button:first-child {
-            background: linear-gradient(135deg, #1E2536 0%, #0E131F 100%) !important;
+        /* Tesla 紅色光芒按鈕 */
+        div.stButton > button:first-child {{
+            background: linear-gradient(135deg, #202738 0%, #0E131F 100%) !important;
             color: #FFFFFF !important;
             border: 1px solid #E82127 !important;
             border-radius: 6px !important;
@@ -211,32 +252,32 @@ def inject_tesla_cyber_ui():
             font-weight: 800 !important;
             letter-spacing: 1px !important;
             box-shadow: 0 4px 14px rgba(232, 33, 39, 0.25) !important;
-        }
-        div.stButton > button:first-child:hover {
+        }}
+        div.stButton > button:first-child:hover {{
             background: #E82127 !important;
             color: #FFF !important;
-            box-shadow: 0 0 20px rgba(232, 33, 39, 0.7) !important;
-        }
+            box-shadow: 0 0 22px rgba(232, 33, 39, 0.7) !important;
+        }}
 
-        @keyframes pulse-tesla {
-            0% { box-shadow: 0 0 0 0 rgba(232, 33, 39, 0.6); }
-            70% { box-shadow: 0 0 0 10px rgba(232, 33, 39, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(232, 33, 39, 0); }
-        }
-        .alert-tesla {
+        /* 呼吸警報 */
+        @keyframes pulse-tesla {{
+            0% {{ box-shadow: 0 0 0 0 rgba(232, 33, 39, 0.6); }}
+            70% {{ box-shadow: 0 0 0 10px rgba(232, 33, 39, 0); }}
+            100% {{ box-shadow: 0 0 0 0 rgba(232, 33, 39, 0); }}
+        }}
+        .alert-tesla {{
             background: linear-gradient(135deg, rgba(232, 33, 39, 0.25) 0%, rgba(14, 19, 31, 0.95) 100%);
             border: 1px solid #E82127;
             border-radius: 8px;
             padding: 12px 18px;
             margin-bottom: 14px;
-            animation: pulse-tesla 2s infinite;
-        }
+            animation: pulse-tesla 2.2s infinite;
+        }}
     </style>
-    """.replace("__CYBER_BG__", cyber_bg)
-    st.markdown(css_template, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 標的配置
+# 2. 標的池配置
 # ==========================================
 CORE_PORTFOLIO_SYMBOLS = ["TSLA", "AAOI", "NVDA", "MU", "BE", "NBIS", "DDOG"]
 
@@ -248,12 +289,12 @@ DEFAULT_UNIVERSE = list(dict.fromkeys(CORE_PORTFOLIO_SYMBOLS + [
 ]))
 
 GRID_COLUMN_CONFIG = {
-    "Symbol": st.column_config.TextColumn("標的代碼"),
+    "Symbol": st.column_config.TextColumn("代碼"),
     "Rank": st.column_config.TextColumn("評級"),
     "Price": st.column_config.NumberColumn("最新價 ($)", format="$%.2f"),
     "Change": st.column_config.NumberColumn("今日漲跌 (%)", format="%.2f%%"),
     "Score": st.column_config.ProgressColumn("J Law 評分", min_value=0, max_value=100, format="%d"),
-    "RS": st.column_config.ProgressColumn("RS 相對強度", min_value=1, max_value=99, format="%d"),
+    "RS": st.column_config.ProgressColumn("RS 強度", min_value=1, max_value=99, format="%d"),
     "Flow_Status": st.column_config.TextColumn("主力資金狀態"),
     "CMF": st.column_config.NumberColumn("20D CMF", format="%.2f"),
     "Pocket_Pivot": st.column_config.TextColumn("口袋買點"),
@@ -310,7 +351,7 @@ def calculate_distribution_days(df, lookback=25):
     return int(is_dist.sum())
 
 # ==========================================
-# 4. J Law M.E.T.A. 與資金面量化演算法
+# 4. J Law M.E.T.A. 結構量化定價演算法
 # ==========================================
 def evaluate_jlaw_stock(symbol, df, df_spy):
     try:
@@ -342,7 +383,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         mf_volume = mf_multiplier * v
         cmf_20 = float(mf_volume.rolling(20).sum().iloc[-1] / v.rolling(20).sum().replace(0, 1e-9).iloc[-1])
         
-        # Pocket Pivot 口袋買點
+        # Pocket Pivot
         is_up_today = curr_price > prev_price
         last_10_down_vol = [v.iloc[-(i+1)] for i in range(1, 11) if c.iloc[-(i+1)] < c.iloc[-(i+2)]]
         max_down_vol = max(last_10_down_vol) if last_10_down_vol else 0
@@ -363,7 +404,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             meta_edges += 1
             reasons.append("觸發口袋買點 (Pocket Pivot)")
 
-        # Stage 2 檢驗
+        # Stage 2 趨勢
         is_stage2 = False
         if curr_price > sma50 and sma50 > sma150 and sma150 > sma200:
             score += 20
@@ -374,7 +415,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         elif curr_price > sma50:
             score += 8
 
-        # RS 計算
+        # RS 強度
         def perf(series, days):
             d = min(len(series) - 1, days)
             return (series.iloc[-1] / series.iloc[-d]) - 1
@@ -391,7 +432,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             score += 15
         elif rs_rating >= 50: score += 8
 
-        # VCP 檢測
+        # VCP 波動收窄
         tr = pd.concat([h - l, (h - c.shift(1)).abs(), (l - c.shift(1)).abs()], axis=1).max(axis=1)
         atr14 = float(tr.rolling(14).mean().iloc[-1])
         atr50 = float(tr.rolling(50).mean().iloc[-1])
@@ -414,7 +455,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         elif -2.0 <= dist_ema20 < 0:
             score += 8
 
-        # DRSI
+        # DRSI 金叉
         delta = c.diff()
         gain = delta.where(delta > 0, 0).rolling(14).mean()
         loss = (-delta.where(delta < 0, 0)).rolling(14).mean()
@@ -436,7 +477,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
             score += 6
             drsi_status = "多頭維持"
 
-        # 量比
+        # 量比 RVOL
         v_50 = float(v.rolling(50).mean().iloc[-1])
         rvol = float(v.iloc[-1]) / (v_50 if v_50 > 0 else 1)
         if change_pct > 0 and rvol >= 1.3:
@@ -449,7 +490,7 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         total_score = int(np.clip(score, 0, 100))
         rank = "Diamond" if (total_score >= 80 and is_stage2) else ("Gold" if total_score >= 65 else ("Silver" if total_score >= 50 else "Bronze"))
 
-        # 定價計算
+        # 結構定價
         recent_10d_high = float(h.iloc[-10:].max())
         recent_10d_low = float(l.iloc[-10:].min())
 
@@ -503,20 +544,22 @@ def evaluate_jlaw_stock(symbol, df, df_spy):
         return None
 
 # ==========================================
-# 5. 主應用渲染
+# 5. 主應用邏輯渲染
 # ==========================================
-inject_tesla_cyber_ui()
+inject_tesla_experience_ui()
 
 with st.sidebar:
     st.markdown("## ⚡ TESLA CYBER")
-    st.caption("Optimus Autonomous Terminal • J Law System")
+    st.caption("Optimus Autonomous Terminal • FSD v13.2")
     st.markdown("---")
 
     st.markdown("""
     <div style="background:rgba(232, 33, 39, 0.12); border:1px solid #E82127; border-radius:6px; padding:12px; margin-bottom:14px;">
-        <div style="font-weight:900; color:#FF6B6B; font-size:12.5px;">🤖 OPTIMUS QUANT CORE</div>
+        <div style="font-weight:900; color:#FF6B6B; font-size:12.5px;">🤖 OPTIMUS GEN-3 TELEMETRY</div>
         <div style="font-size:11px; color:#CBD5E1; margin-top:4px; line-height:1.5;">
-            已啟動主力資金面追蹤引擎：大盤出貨日計數、CMF 蔡金資金流、Pocket Pivot 機構暗盤異動及 1% 倉位模型。
+            神經網絡狀態：<b>120 FPS 運算中</b><br>
+            關節執行器載荷：<b>24% (正常)</b><br>
+            已接入 J Law 兩屆美股冠軍實戰體系。
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -544,7 +587,7 @@ with st.sidebar:
             except Exception as e:
                 st.error(f"連線異常: {e}")
 
-# 獲取行情數據
+# 行情抓取
 if 'scan_data' not in st.session_state:
     with st.spinner("⚡ Optimus 正在計算美股主力資金流向與 J Law 樞紐..."):
         stock_dict, df_spy, df_qqq, df_dia = fetch_all_data(full_scan_list)
@@ -577,32 +620,36 @@ spy_sma50 = float(spy_df['Close'].rolling(50).mean().iloc[-1]) if spy_df is not 
 if (qqq_curr > qqq_ema20 and spy_curr > spy_sma50) and (qqq_dist_days < 5 and spy_dist_days < 5):
     gear_class_d = "gear-active-drive"
     gear_class_n, gear_class_p = "", ""
-    gear_text = "DRIVE (積極做多 / 滿油門)"
+    gear_text = "DRIVE (PLAID 狂暴油門)"
     recommended_exposure = 100
 elif (qqq_curr > qqq_ema20 or spy_curr > spy_sma50) and (qqq_dist_days < 6):
     gear_class_n = "gear-active-neutral"
     gear_class_d, gear_class_p = "", ""
-    gear_text = "NEUTRAL (中性輕倉 / 嚴控回撤)"
+    gear_text = "NEUTRAL (STANDARD 輕倉)"
     recommended_exposure = 40
 else:
     gear_class_p = "gear-active-park"
     gear_class_d, gear_class_n = "", ""
-    gear_text = "PARK (空倉防守 / 主力派發)"
+    gear_text = "PARK (CHILL 防禦防守)"
     recommended_exposure = 10
 
-# 頂部 Tesla 儀表板
+# 1. 貫穿式 Cyber Lightbar
+st.markdown('<div class="cyber-lightbar"></div>', unsafe_allow_html=True)
+
+# 2. Tesla Cockpit Header
 st.markdown(f"""
-<div class="tesla-cluster-banner">
+<div class="tesla-cockpit-bar">
     <div>
         <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:22px; font-weight:900; font-family:'JetBrains Mono'; color:#FFF; letter-spacing:1px;">
-                ⚡ TESLA CYBER TERMINAL <span style="color:#E82127;">// SMART MONEY RADAR</span>
+            <span style="font-size:24px; font-weight:900; font-family:'Space Grotesk'; color:#FFF; letter-spacing:1px;">
+                ⚡ TESLA CYBER TERMINAL <span style="color:#E82127;">// FSD OS 12.5</span>
             </span>
             <span class="badge badge-tesla">CYBERCAB ONLINE</span>
             <span class="badge badge-diamond">OPTIMUS GEN-3</span>
+            <span class="badge badge-supercharger">⚡ 250kW V4 FLOW</span>
         </div>
-        <div style="font-size:11.5px; color:#94A3B8; margin-top:3px; font-family:'JetBrains Mono';">
-            INSTITUTIONAL LIQUIDITY TRACKER • J LAW CHAMPION TRADING DESK
+        <div style="font-size:11.5px; color:#94A3B8; margin-top:4px; font-family:'JetBrains Mono';">
+            CYBERTRUCK STAINLESS STEEL RADAR • J LAW CHAMPION TRADING SYSTEM
         </div>
     </div>
     <div style="display:flex; align-items:center; gap:16px;">
@@ -610,11 +657,11 @@ st.markdown(f"""
             <div style="font-size:10.5px; color:#94A3B8; font-family:'JetBrains Mono';">大盤檔位 TELEMETRY</div>
             <div style="font-size:12px; font-weight:700; color:#E2E8F0; margin-top:2px;">{gear_text}</div>
         </div>
-        <div class="tesla-gear-box">
-            <span class="gear-item {gear_class_p}">P</span>
-            <span class="gear-item">R</span>
-            <span class="gear-item {gear_class_n}">N</span>
-            <span class="gear-item {gear_class_d}">D</span>
+        <div class="tesla-gear-console">
+            <span class="gear-pill {gear_class_p}">P</span>
+            <span class="gear-pill">R</span>
+            <span class="gear-pill {gear_class_n}">N</span>
+            <span class="gear-pill {gear_class_d}">D</span>
         </div>
     </div>
 </div>
@@ -639,7 +686,7 @@ if not perfect_matches.empty:
     </div>
     """, unsafe_allow_html=True)
 
-# 導航
+# 導航（已完全清除原生圓點）
 nav_selection = st.radio(
     "導航模式",
     [
@@ -655,7 +702,7 @@ nav_selection = st.radio(
 )
 
 # ----------------------------------------------------
-# 模組 1: 大市宏觀與主力出貨日
+# 模組 1: 大市宏觀與出貨日
 # ----------------------------------------------------
 if nav_selection == "🌐 大市宏觀與出貨日 (Market Telemetry)":
     st.markdown("""
